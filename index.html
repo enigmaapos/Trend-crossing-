@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Binance USDⓈ-M Perpetual (USDT) Pairs — Analyzer</title>
+  <style>
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;margin:16px;background:#0b1220;color:#e6eef8}
+    .card{background:#0f1a2b;border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 6px 18px rgba(2,8,23,.6)}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:13px}
+    th{color:#9fb3d6;text-align:left}
+    input[type="text"]{padding:6px;border-radius:6px;border:1px solid #243444;background:#07101a;color:#e6eef8}
+    button{padding:6px 10px;border-radius:6px;border:none;background:#1f6feb;color:white;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:#bcd6ff}
+    .small{font-size:12px;color:#9fb3d6}
+    .status-green{color:#6ee7b7}
+    .status-red{color:#ff9b99}
+    pre{white-space:pre-wrap;background:#081421;padding:8px;border-radius:6px;color:#cfe9ff}
+    .muted{color:#8aa4c8;font-size:12px}
+    .controls{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  </style>
+</head>
+<body>
+  <h2>Binance USDⓈ-M Perpetual (USDT) Pairs — Analyzer</h2>
+  <div class="card">
+    <div class="controls">
+      <input id="search" placeholder="Search symbol (e.g. BTCUSDT)" />
+      <select id="limitSelect">
+        <option value="100">Show 100</option>
+        <option value="250" selected>Show 250</option>
+        <option value="500">Show 500</option>
+      </select>
+      <button id="refresh">Refresh symbol list</button>
+      <span class="muted">Data source: Binance Futures Exchange Info (GET /fapi/v1/exchangeInfo)</span>
+    </div>
+
+    <div id="summary" class="small muted">Loading symbols...</div>
+
+    <div style="overflow:auto;max-height:60vh;margin-top:8px">
+      <table id="symbolsTable">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Contract</th>
+            <th>Status</th>
+            <th>Base/Quote</th>
+            <th class="text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="analysisArea"></div>
+
+<script>
+/* -------------------------
+   Helper: fetch and utilities
+   ------------------------- */
+const BINANCE_FAPI = 'https://fapi.binance.com';
+
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+/* -------------------------
+   RSI function (from user)
+   ------------------------- */
+function calculateRSI(closes, period = 3) {
+  if (!Array.isArray(closes) || closes.length <= period) return [];
+  const rsi = [];
+  let gains = 0;
+  let losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff > 0) gains += diff;
+    else losses -= diff;
+  }
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+  let rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
+  rsi[period] = 100 - 100 / (1 + rs);
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    const gain = diff > 0 ? diff : 0;
+    const loss = diff < 0 ? -diff : 0;
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+    rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
+    rsi[i] = 100 - 100 / (1 + rs);
+  }
+  for (let i = 0; i < period; i++) rsi[i] = NaN;
+  return rsi;
+}
+
+/* -------------------------
+   EMA helper
+   ------------------------- */
+function calculateEMA(values, period) {
+  if (!Array.isArray(values) || values.length === 0) return [];
+  const k = 2 / (period + 1);
+  const ema = [];
+  // seed with SMA of first period
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (i < period) {
+      sum += v;
+      if (i === period - 1) {
+        const sma = sum / period;
+        ema[i] = sma;
+      } else {
+        ema[i] = NaN;
+      }
+    } else {
+      ema[i] = (v - ema[i - 1]) * k + ema[i - 1];
+    }
+  }
+  return ema;
+}
+
+/* -------------------------
+   getMainTrend (adapted from user)
+   ------------------------- */
+function isNearLevel(price, level, tolerancePercent = 0.5) {
+  if (!isFinite(price) || !isFinite(level)) return false;
+  const pct = Math.abs((price - level) / level) * 100;
+  return pct <= tolerancePercent;
+}
+
+function getMainTrend(ema70, ema200, closes, opens, highs, lows, tolerancePercent = 0.5, dojiToleranceRatio = 0.1) {
+  const len = Math.min(ema70.length, ema200.length, closes.length);
+  if (len < 3) return { trend: 'bullish', type: 'support', crossoverPrice: closes[closes.length-1] || NaN, breakout: null };
+
+  const lastClose = closes[closes.length - 1];
+  const lastOpen = opens[opens.length - 1];
+  const lastHigh = highs[highs.length - 1];
+  const lastLow = lows[lows.length - 1];
+  const isDoji = Math.abs(lastClose - lastOpen) <= (lastHigh - lastLow) * dojiToleranceRatio;
+
+  for (let i = len - 2; i >= 1; i--) {
+    const prevEMA70 = ema70[i - 1];
+    const prevEMA200 = ema200[i - 1];
+    const currEMA70 = ema70[i];
+    const currEMA200 = ema200[i];
+    if (!isFinite(prevEMA70) || !isFinite(prevEMA200) || !isFinite(currEMA70) || !isFinite(currEMA200)) continue;
+
+    // Bullish crossover
+    if (prevEMA70 <= prevEMA200 && currEMA70 > currEMA200) {
+      const crossoverPrice = closes[i];
+      return {
+        trend: 'bullish',
+        type: 'support',
+        crossoverPrice,
+        breakout: lastClose > ema200[ema200.length - 1],
+        isNear: isNearLevel(lastClose, crossoverPrice, tolerancePercent),
+        isDojiAfterBreakout: lastClose > ema200[ema200.length - 1] && isDoji
+      };
+    }
+    // Bearish crossover
+    if (prevEMA70 >= prevEMA200 && currEMA70 < currEMA200) {
+      const crossoverPrice = closes[i];
+      return {
+        trend: 'bearish',
+        type: 'resistance',
+        crossoverPrice,
+        breakout: lastClose < ema200[ema200.length - 1],
+        isNear: isNearLevel(lastClose, crossoverPrice, tolerancePercent),
+        isDojiAfterBreakout: lastClose < ema200[ema200.length - 1] && isDoji
+      };
+    }
+  }
+
+  const lastEMA70 = ema70[ema70.length - 1];
+  const lastEMA200 = ema200[ema200.length - 1];
+  const fallbackTrend = lastEMA70 >= lastEMA200 ? 'bullish' : 'bearish';
+  return {
+    trend: fallbackTrend,
+    type: fallbackTrend === 'bullish' ? 'support' : 'resistance',
+    crossoverPrice: lastClose,
+    breakout: null,
+    isNear: true,
+    isDojiAfterBreakout: false
+  };
+}
+
+/* -------------------------
+   UI and core logic
+   ------------------------- */
+
+const tableBody = document.querySelector('#symbolsTable tbody');
+const summaryEl = document.getElementById('summary');
+const analysisArea = document.getElementById('analysisArea');
+const searchInput = document.getElementById('search');
+const refreshBtn = document.getElementById('refresh');
+const limitSelect = document.getElementById('limitSelect');
+
+let symbolsList = [];
+
+async function loadSymbols() {
+  summaryEl.textContent = 'Loading symbols from Binance...';
+  try {
+    const info = await fetchJson(`${BINANCE_FAPI}/fapi/v1/exchangeInfo`);
+    // symbols array: filter PERPETUAL and USDT quote
+    symbolsList = (info.symbols || []).filter(s => {
+      // contractType may be present or default: "PERPETUAL"
+      const isPerp = (s.contractType && s.contractType.toUpperCase() === 'PERPETUAL') || (s.contractType === undefined && s.symbol?.endsWith('USDT'));
+      const isUSDT = (s.quoteAsset && s.quoteAsset.toUpperCase() === 'USDT') || s.symbol.endsWith('USDT');
+      return isPerp && isUSDT;
+    }).map(s => ({
+      symbol: s.symbol,
+      status: s.status || 'TRADING',
+      baseAsset: s.baseAsset || s.symbol.replace(/USDT$/,''),
+      quoteAsset: s.quoteAsset || 'USDT',
+      contractType: s.contractType || 'PERPETUAL'
+    }));
+
+    renderTable();
+    summaryEl.textContent = `Loaded ${symbolsList.length} USDT perpetual symbols. Click "Analyze" to fetch klines & indicators.`;
+  } catch (err) {
+    summaryEl.textContent = `Failed to load symbols: ${err.message}`;
+  }
+}
+
+function renderTable() {
+  const q = searchInput.value.trim().toUpperCase();
+  const limit = Number(limitSelect.value) || 250;
+  tableBody.innerHTML = '';
+  const slice = symbolsList.filter(s => !q || s.symbol.includes(q)).slice(0, limit);
+  for (const s of slice) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${s.symbol}</strong></td>
+      <td>${s.contractType}</td>
+      <td class="small ${s.status==='TRADING'?'status-green':'status-red'}">${s.status}</td>
+      <td class="small">${s.baseAsset} / ${s.quoteAsset}</td>
+      <td style="text-align:right">
+        <button class="ghost" data-symbol="${s.symbol}" onclick="analyzeSymbol('${s.symbol}', '1d')">Analyze (1d)</button>
+        <button class="ghost" data-symbol="${s.symbol}" onclick="analyzeSymbol('${s.symbol}', '4h')">Analyze (4h)</button>
+      </td>`;
+    tableBody.appendChild(tr);
+  }
+}
+
+/* Fetch klines for a symbol + interval */
+async function fetchKlines(symbol, interval = '1d', limit = 500) {
+  const url = `${BINANCE_FAPI}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`;
+  const raw = await fetchJson(url);
+  return raw.map(c => ({
+    ts: c[0],
+    open: +c[1],
+    high: +c[2],
+    low: +c[3],
+    close: +c[4],
+    volume: +c[5]
+  }));
+}
+
+/* Main analyze function (exposed on window so buttons can call) */
+window.analyzeSymbol = async function(symbol, interval) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
+    <div><strong>Analyzing ${symbol}</strong> <span class="muted">(${interval})</span></div>
+    <div><button onclick="this.closest('.card').remove()" class="ghost">Close</button></div>
+  </div>
+  <div id="body-${symbol}-${interval}"><div class="small muted">Fetching klines...</div></div>`;
+  analysisArea.prepend(card);
+
+  try {
+    const klines = await fetchKlines(symbol, interval, 500);
+    if (!klines || klines.length === 0) throw new Error('No klines returned');
+
+    const closes = klines.map(k => k.close);
+    const opens  = klines.map(k => k.open);
+    const highs  = klines.map(k => k.high);
+    const lows   = klines.map(k => k.low);
+    const volumes= klines.map(k => k.volume);
+
+    const ema14 = calculateEMA(closes, 14);
+    const ema70 = calculateEMA(closes, 70);
+    const ema200= calculateEMA(closes, 200);
+    const rsi14 = calculateRSI(closes, 14);
+
+    const trend = getMainTrend(ema70, ema200, closes, opens, highs, lows);
+
+    const last = {
+      close: closes[closes.length-1],
+      ema14: ema14[ema14.length-1],
+      ema70: ema70[ema70.length-1],
+      ema200: ema200[ema200.length-1],
+      rsi14: rsi14[rsi14.length-1]
+    };
+
+    // Build result HTML
+    const body = document.getElementById(`body-${symbol}-${interval}`);
+    body.innerHTML = `
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+        <div style="min-width:220px">
+          <div class="small muted">Last Close</div>
+          <div><strong>${last.close}</strong></div>
+        </div>
+        <div style="min-width:220px">
+          <div class="small muted">EMA14 / EMA70 / EMA200</div>
+          <div>${(isFinite(last.ema14)?last.ema14.toFixed(6):'n/a')} / ${(isFinite(last.ema70)?last.ema70.toFixed(6):'n/a')} / ${(isFinite(last.ema200)?last.ema200.toFixed(6):'n/a')}</div>
+        </div>
+        <div style="min-width:140px">
+          <div class="small muted">RSI14</div>
+          <div><strong>${isFinite(last.rsi14)?last.rsi14.toFixed(2):'n/a'}</strong></div>
+        </div>
+        <div style="min-width:220px">
+          <div class="small muted">Main Trend (EMA70 x EMA200)</div>
+          <div>
+            <strong>${trend.trend.toUpperCase()}</strong> (${trend.type})
+            ${trend.breakout===true?'<span class="status-green"> • Breakout</span>':''}
+            ${trend.breakout===false?'<span class="status-red"> • No breakout</span>':''}
+            ${trend.isNear?'<span class="small muted"> • Near level</span>':''}
+            ${trend.isDojiAfterBreakout?'<span class="small muted"> • Doji after breakout</span>':''}
+          </div>
+          <div class="small muted">Crossover price: ${isFinite(trend.crossoverPrice)?trend.crossoverPrice.toFixed(8):'n/a'}</div>
+        </div>
+      </div>
+
+      <div style="margin-top:10px">
+        <details>
+          <summary class="small muted">Show last 8 candles</summary>
+          <pre>${klines.slice(-8).map(k => `${new Date(k.ts).toISOString()} O:${k.open} H:${k.high} L:${k.low} C:${k.close} V:${k.volume}`).join('\n')}</pre>
+        </details>
+      </div>
+    `;
+  } catch (err) {
+    const body = document.getElementById(`body-${symbol}-${interval}`);
+    body.innerHTML = `<div class="small muted">Error: ${err.message}</div>`;
+  }
+};
+
+/* Wire up UI */
+searchInput.addEventListener('input', () => renderTable());
+refreshBtn.addEventListener('click', loadSymbols);
+limitSelect.addEventListener('change', renderTable);
+
+/* initial load */
+loadSymbols();
+</script>
+</body>
+</html>
