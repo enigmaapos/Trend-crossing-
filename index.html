@@ -24,6 +24,8 @@
   </table>
 
 <script>
+const proxy = 'https://api.allorigins.win/raw?url=';
+
 /* ---------- EMA ---------- */
 function calculateEMA(data, period) {
   const k = 2 / (period + 1);
@@ -78,12 +80,10 @@ function detectRecentRSICross(rsi, ema70, ema200) {
     const prevRSI = rsi[i - 1], currRSI = rsi[i];
     const prev70 = ema70[i - 1], curr70 = ema70[i];
     const prev200 = ema200[i - 1], curr200 = ema200[i];
-    // Bullish: RSI crosses above both EMAs
     if (prevRSI <= prev70 && prevRSI <= prev200 &&
         currRSI > curr70 && currRSI > curr200) {
       return { type: 'bullish', index: i };
     }
-    // Bearish: RSI crosses below both EMAs
     if (prevRSI >= prev70 && prevRSI >= prev200 &&
         currRSI < curr70 && currRSI < curr200) {
       return { type: 'bearish', index: i };
@@ -94,7 +94,7 @@ function detectRecentRSICross(rsi, ema70, ema200) {
 
 /* ---------- Fetch Data ---------- */
 async function fetchSymbols() {
-  const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
+  const res = await fetch(proxy + encodeURIComponent('https://fapi.binance.com/fapi/v1/exchangeInfo'));
   const data = await res.json();
   return data.symbols
     .filter(s => s.symbol.endsWith('USDT') && s.contractType === 'PERPETUAL')
@@ -102,14 +102,11 @@ async function fetchSymbols() {
 }
 
 async function fetchKlines(symbol) {
-  const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=500`;
+  const url = proxy + encodeURIComponent(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=500`);
   const res = await fetch(url);
   const data = await res.json();
   return data.map(c => ({
     time: c[0],
-    open: +c[1],
-    high: +c[2],
-    low: +c[3],
     close: +c[4]
   }));
 }
@@ -125,8 +122,7 @@ async function fetchKlines(symbol) {
   const MIN_DELAY = 400, MAX_DELAY = 800;
   let count = 0;
 
-  for (let i = 0; i < symbols.length; i++) {
-    const sym = symbols[i];
+  for (let sym of symbols) {
     try {
       const candles = await fetchKlines(sym);
       const closes = candles.map(c => c.close);
@@ -138,7 +134,7 @@ async function fetchKlines(symbol) {
       if (cross) {
         const candle = candles[cross.index];
         const minsAgo = ((Date.now() - candle.time) / 60000).toFixed(1);
-        if (minsAgo <= 45) { // only show crosses within last 45 min
+        if (minsAgo <= 45) {
           const row = document.createElement('tr');
           row.innerHTML = `
             <td>${sym}</td>
@@ -155,12 +151,10 @@ async function fetchKlines(symbol) {
 
     count++;
     if (count % BATCH_SIZE === 0)
-      await new Promise(r => setTimeout(r, 2000)); // pause between batches
-
-    await new Promise(r =>
-      setTimeout(r, Math.random() * (MAX_DELAY - MIN_DELAY) + MIN_DELAY)
-    );
+      await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, Math.random() * (MAX_DELAY - MIN_DELAY) + MIN_DELAY));
   }
+
   status.textContent = `✅ Scan complete!`;
 })();
 </script>
