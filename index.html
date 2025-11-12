@@ -3,53 +3,80 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Binance USDⓈ-M Perpetual (USDT) Pairs — Analyzer</title>
+  <title>RSI(14) EMA70/EMA200 Cross Scanner — Binance Perpetual (15m)</title>
   <style>
-    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;margin:16px;background:#0b1220;color:#e6eef8}
-    .card{background:#0f1a2b;border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 6px 18px rgba(2,8,23,.6)}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:13px}
-    th{color:#9fb3d6;text-align:left}
-    input[type="text"]{padding:6px;border-radius:6px;border:1px solid #243444;background:#07101a;color:#e6eef8}
-    button{padding:6px 10px;border-radius:6px;border:none;background:#1f6feb;color:white;cursor:pointer}
-    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:#bcd6ff}
-    .small{font-size:12px;color:#9fb3d6}
-    .status-green{color:#6ee7b7}
-    .status-red{color:#ff9b99}
+    :root{--bg:#07101a;--card:#0f1a2b;--muted:#9fb3d6;--accent:#1f6feb}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;margin:16px;background:var(--bg);color:#e6eef8}
+    h1{font-size:18px;margin:0 0 8px}
+    .card{background:var(--card);border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 8px 26px rgba(2,8,23,.6)}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+    input,select{padding:6px;border-radius:6px;border:1px solid #243444;background:#07101a;color:#e6eef8}
+    button{padding:6px 10px;border-radius:6px;border:none;background:var(--accent);color:white;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+    .muted{color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .list{max-height:60vh;overflow:auto;padding:6px;border-radius:6px;background:#06121b}
+    .item{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);display:flex;justify-content:space-between;gap:8px;align-items:center}
+    .symbol{font-weight:600}
+    .small{font-size:12px;color:var(--muted)}
     pre{white-space:pre-wrap;background:#081421;padding:8px;border-radius:6px;color:#cfe9ff}
-    .muted{color:#8aa4c8;font-size:12px}
-    .controls{display:flex;gap:8px;align-items:center;margin-bottom:8px}
   </style>
 </head>
 <body>
-  <h2>Binance USDⓈ-M Perpetual (USDT) Pairs — Analyzer</h2>
+  <h1>RSI(14) EMA70/EMA200 Cross Scanner — Binance Perpetual (15m)</h1>
+
   <div class="card">
     <div class="controls">
-      <input id="search" placeholder="Search symbol (e.g. BTCUSDT)" />
-      <select id="limitSelect">
-        <option value="100">Show 100</option>
-        <option value="250" selected>Show 250</option>
-        <option value="500">Show 500</option>
-      </select>
-      <button id="refresh">Refresh symbol list</button>
-      <span class="muted">Data source: Binance Futures Exchange Info (GET /fapi/v1/exchangeInfo)</span>
+      <button id="scanBtn">Scan All (15m)</button>
+      <button id="stopBtn" disabled class="ghost">Stop</button>
+
+      <label class="small muted">Batch size:
+        <select id="batchSize">
+          <option value="3">3</option>
+          <option value="5" selected>5</option>
+          <option value="10">10</option>
+        </select>
+      </label>
+
+      <label class="small muted">Delay inside batch (ms):
+        <select id="minDelay">
+          <option value="300">300</option>
+          <option value="500" selected>500</option>
+          <option value="700">700</option>
+        </select>
+      </label>
+
+      <label class="small muted">Batch pause (ms):
+        <select id="batchPause">
+          <option value="1000">1s</option>
+          <option value="2000" selected>2s</option>
+          <option value="4000">4s</option>
+        </select>
+      </label>
+
+      <label class="small muted">Recent candles to check:
+        <select id="recentCandles">
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="5">5</option>
+        </select>
+      </label>
+
+      <div style="margin-left:auto" class="small muted" id="status">Idle</div>
     </div>
 
-    <div id="summary" class="small muted">Loading symbols...</div>
+    <div class="small muted">This scans Binance Futures USDⓈ-M perpetual USDT pairs and checks for EMA70/EMA200 cross on RSI(14) (on 15m timeframe). Use Scan All to start. Be mindful of rate limits — defaults include batching/delays.</div>
+  </div>
 
-    <div style="overflow:auto;max-height:60vh;margin-top:8px">
-      <table id="symbolsTable">
-        <thead>
-          <tr>
-            <th>Symbol</th>
-            <th>Contract</th>
-            <th>Status</th>
-            <th>Base/Quote</th>
-            <th class="text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+  <div class="grid">
+    <div class="card">
+      <h3 style="margin-top:0">✅ Bullish Crosses (EMA70 → EMA200)</h3>
+      <div id="bullList" class="list"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">🔻 Bearish Crosses (EMA70 ↓ EMA200)</h3>
+      <div id="bearList" class="list"></div>
     </div>
   </div>
 
@@ -57,20 +84,16 @@
 
 <script>
 /* -------------------------
-   Helper: fetch and utilities
+   Config / endpoints
    ------------------------- */
 const BINANCE_FAPI = 'https://fapi.binance.com';
-
-async function fetchJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  return res.json();
-}
+const INTERVAL = '15m';
+const KLINE_LIMIT = 500; // max 1500 available; 500 OK for EMA200 on RSI
 
 /* -------------------------
-   RSI function (from user)
+   RSI function (user's)
    ------------------------- */
-function calculateRSI(closes, period = 3) {
+function calculateRSI(closes, period = 14) {
   if (!Array.isArray(closes) || closes.length <= period) return [];
   const rsi = [];
   let gains = 0;
@@ -104,17 +127,15 @@ function calculateEMA(values, period) {
   if (!Array.isArray(values) || values.length === 0) return [];
   const k = 2 / (period + 1);
   const ema = [];
-  // seed with SMA of first period
   let sum = 0;
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
     if (i < period) {
       sum += v;
+      ema[i] = NaN;
       if (i === period - 1) {
         const sma = sum / period;
         ema[i] = sma;
-      } else {
-        ema[i] = NaN;
       }
     } else {
       ema[i] = (v - ema[i - 1]) * k + ema[i - 1];
@@ -124,130 +145,31 @@ function calculateEMA(values, period) {
 }
 
 /* -------------------------
-   getMainTrend (adapted from user)
+   Utility fetch
    ------------------------- */
-function isNearLevel(price, level, tolerancePercent = 0.5) {
-  if (!isFinite(price) || !isFinite(level)) return false;
-  const pct = Math.abs((price - level) / level) * 100;
-  return pct <= tolerancePercent;
-}
-
-function getMainTrend(ema70, ema200, closes, opens, highs, lows, tolerancePercent = 0.5, dojiToleranceRatio = 0.1) {
-  const len = Math.min(ema70.length, ema200.length, closes.length);
-  if (len < 3) return { trend: 'bullish', type: 'support', crossoverPrice: closes[closes.length-1] || NaN, breakout: null };
-
-  const lastClose = closes[closes.length - 1];
-  const lastOpen = opens[opens.length - 1];
-  const lastHigh = highs[highs.length - 1];
-  const lastLow = lows[lows.length - 1];
-  const isDoji = Math.abs(lastClose - lastOpen) <= (lastHigh - lastLow) * dojiToleranceRatio;
-
-  for (let i = len - 2; i >= 1; i--) {
-    const prevEMA70 = ema70[i - 1];
-    const prevEMA200 = ema200[i - 1];
-    const currEMA70 = ema70[i];
-    const currEMA200 = ema200[i];
-    if (!isFinite(prevEMA70) || !isFinite(prevEMA200) || !isFinite(currEMA70) || !isFinite(currEMA200)) continue;
-
-    // Bullish crossover
-    if (prevEMA70 <= prevEMA200 && currEMA70 > currEMA200) {
-      const crossoverPrice = closes[i];
-      return {
-        trend: 'bullish',
-        type: 'support',
-        crossoverPrice,
-        breakout: lastClose > ema200[ema200.length - 1],
-        isNear: isNearLevel(lastClose, crossoverPrice, tolerancePercent),
-        isDojiAfterBreakout: lastClose > ema200[ema200.length - 1] && isDoji
-      };
-    }
-    // Bearish crossover
-    if (prevEMA70 >= prevEMA200 && currEMA70 < currEMA200) {
-      const crossoverPrice = closes[i];
-      return {
-        trend: 'bearish',
-        type: 'resistance',
-        crossoverPrice,
-        breakout: lastClose < ema200[ema200.length - 1],
-        isNear: isNearLevel(lastClose, crossoverPrice, tolerancePercent),
-        isDojiAfterBreakout: lastClose < ema200[ema200.length - 1] && isDoji
-      };
-    }
-  }
-
-  const lastEMA70 = ema70[ema70.length - 1];
-  const lastEMA200 = ema200[ema200.length - 1];
-  const fallbackTrend = lastEMA70 >= lastEMA200 ? 'bullish' : 'bearish';
-  return {
-    trend: fallbackTrend,
-    type: fallbackTrend === 'bullish' ? 'support' : 'resistance',
-    crossoverPrice: lastClose,
-    breakout: null,
-    isNear: true,
-    isDojiAfterBreakout: false
-  };
+async function fetchJson(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json();
 }
 
 /* -------------------------
-   UI and core logic
+   Get perpetual USDT symbols
    ------------------------- */
-
-const tableBody = document.querySelector('#symbolsTable tbody');
-const summaryEl = document.getElementById('summary');
-const analysisArea = document.getElementById('analysisArea');
-const searchInput = document.getElementById('search');
-const refreshBtn = document.getElementById('refresh');
-const limitSelect = document.getElementById('limitSelect');
-
-let symbolsList = [];
-
-async function loadSymbols() {
-  summaryEl.textContent = 'Loading symbols from Binance...';
-  try {
-    const info = await fetchJson(`${BINANCE_FAPI}/fapi/v1/exchangeInfo`);
-    // symbols array: filter PERPETUAL and USDT quote
-    symbolsList = (info.symbols || []).filter(s => {
-      // contractType may be present or default: "PERPETUAL"
-      const isPerp = (s.contractType && s.contractType.toUpperCase() === 'PERPETUAL') || (s.contractType === undefined && s.symbol?.endsWith('USDT'));
-      const isUSDT = (s.quoteAsset && s.quoteAsset.toUpperCase() === 'USDT') || s.symbol.endsWith('USDT');
-      return isPerp && isUSDT;
-    }).map(s => ({
-      symbol: s.symbol,
-      status: s.status || 'TRADING',
-      baseAsset: s.baseAsset || s.symbol.replace(/USDT$/,''),
-      quoteAsset: s.quoteAsset || 'USDT',
-      contractType: s.contractType || 'PERPETUAL'
-    }));
-
-    renderTable();
-    summaryEl.textContent = `Loaded ${symbolsList.length} USDT perpetual symbols. Click "Analyze" to fetch klines & indicators.`;
-  } catch (err) {
-    summaryEl.textContent = `Failed to load symbols: ${err.message}`;
-  }
+async function loadPerpetualUSDT() {
+  const info = await fetchJson(`${BINANCE_FAPI}/fapi/v1/exchangeInfo`);
+  const list = (info.symbols || []).filter(s => {
+    const isPerp = (s.contractType && s.contractType.toUpperCase() === 'PERPETUAL') || s.symbol.endsWith('USDT');
+    const isUSDT = (s.quoteAsset && s.quoteAsset.toUpperCase() === 'USDT') || s.symbol.endsWith('USDT');
+    return isPerp && isUSDT;
+  }).map(s => s.symbol);
+  return Array.from(new Set(list)).sort();
 }
 
-function renderTable() {
-  const q = searchInput.value.trim().toUpperCase();
-  const limit = Number(limitSelect.value) || 250;
-  tableBody.innerHTML = '';
-  const slice = symbolsList.filter(s => !q || s.symbol.includes(q)).slice(0, limit);
-  for (const s of slice) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><strong>${s.symbol}</strong></td>
-      <td>${s.contractType}</td>
-      <td class="small ${s.status==='TRADING'?'status-green':'status-red'}">${s.status}</td>
-      <td class="small">${s.baseAsset} / ${s.quoteAsset}</td>
-      <td style="text-align:right">
-        <button class="ghost" data-symbol="${s.symbol}" onclick="analyzeSymbol('${s.symbol}', '1d')">Analyze (1d)</button>
-        <button class="ghost" data-symbol="${s.symbol}" onclick="analyzeSymbol('${s.symbol}', '4h')">Analyze (4h)</button>
-      </td>`;
-    tableBody.appendChild(tr);
-  }
-}
-
-/* Fetch klines for a symbol + interval */
-async function fetchKlines(symbol, interval = '1d', limit = 500) {
+/* -------------------------
+   Fetch klines
+   ------------------------- */
+async function fetchKlines(symbol, interval = INTERVAL, limit = KLINE_LIMIT) {
   const url = `${BINANCE_FAPI}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`;
   const raw = await fetchJson(url);
   return raw.map(c => ({
@@ -256,95 +178,184 @@ async function fetchKlines(symbol, interval = '1d', limit = 500) {
     high: +c[2],
     low: +c[3],
     close: +c[4],
-    volume: +c[5]
+    vol: +c[5]
   }));
 }
 
-/* Main analyze function (exposed on window so buttons can call) */
-window.analyzeSymbol = async function(symbol, interval) {
+/* -------------------------
+   Crossover detection (EMA70 vs EMA200 on RSI series)
+   - checks the last `recentCandles` candles for a cross event
+   - returns the newest cross object or null
+   ------------------------- */
+function detectRecentEMACrossOnRSI(rsiValues, recentCandles = 3) {
+  // build ema arrays
+  const ema70 = calculateEMA(rsiValues, 70);
+  const ema200 = calculateEMA(rsiValues, 200);
+
+  const n = Math.min(rsiValues.length, ema70.length, ema200.length);
+  if (n === 0) return null;
+
+  // Ensure we have valid (finite) EMA200 near the end; otherwise can't detect
+  const lastIndex = n - 1;
+  if (!isFinite(ema200[lastIndex])) return null;
+
+  // limit scan window
+  const startIdx = Math.max(1, lastIndex - recentCandles + 1); // need prev index to compare
+  // we want the newest cross (iterate backwards).
+  for (let i = lastIndex; i >= startIdx; i--) {
+    const prev = i - 1;
+    if (prev < 0) continue;
+    const prev70 = ema70[prev], prev200 = ema200[prev];
+    const cur70 = ema70[i], cur200 = ema200[i];
+    if (!isFinite(prev70) || !isFinite(prev200) || !isFinite(cur70) || !isFinite(cur200)) continue;
+
+    // Bullish cross: prev70 <= prev200 && cur70 > cur200
+    if (prev70 <= prev200 && cur70 > cur200) {
+      return { type: 'bullish', index: i, timestampIndex: i, ema70: cur70, ema200: cur200, rsi: rsiValues[i] };
+    }
+    // Bearish cross: prev70 >= prev200 && cur70 < cur200
+    if (prev70 >= prev200 && cur70 < cur200) {
+      return { type: 'bearish', index: i, timestampIndex: i, ema70: cur70, ema200: cur200, rsi: rsiValues[i] };
+    }
+  }
+  return null;
+}
+
+/* -------------------------
+   UI helpers
+   ------------------------- */
+const scanBtn = document.getElementById('scanBtn');
+const stopBtn = document.getElementById('stopBtn');
+const statusEl = document.getElementById('status');
+const bullList = document.getElementById('bullList');
+const bearList = document.getElementById('bearList');
+
+let abortRequested = false;
+
+function setStatus(txt) { statusEl.textContent = txt; }
+function clearResults() { bullList.innerHTML = ''; bearList.innerHTML = ''; }
+
+/* Add result item */
+function pushResult(type, symbol, cross, candleTs) {
+  const container = type === 'bullish' ? bullList : bearList;
+  const div = document.createElement('div');
+  div.className = 'item';
+  const left = document.createElement('div');
+  left.innerHTML = `<div class="symbol">${symbol}</div>
+    <div class="small">Time: ${new Date(candleTs).toISOString()} | RSI: ${isFinite(cross.rsi)?cross.rsi.toFixed(3):'n/a'}</div>
+    <div class="small">EMA70: ${isFinite(cross.ema70)?cross.ema70.toFixed(3):'n/a'} | EMA200: ${isFinite(cross.ema200)?cross.ema200.toFixed(3):'n/a'}</div>`;
+  const right = document.createElement('div');
+  right.style.textAlign = 'right';
+  right.innerHTML = `<button class="ghost" onclick="analyzeOne('${symbol}')">Analyze</button>`;
+  div.appendChild(left); div.appendChild(right);
+  container.appendChild(div);
+}
+
+/* Show detailed analysis card for one symbol */
+async function analyzeOne(symbol) {
   const card = document.createElement('div');
   card.className = 'card';
-  card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
-    <div><strong>Analyzing ${symbol}</strong> <span class="muted">(${interval})</span></div>
-    <div><button onclick="this.closest('.card').remove()" class="ghost">Close</button></div>
+  card.innerHTML = `<div style="display:flex;justify-content:space-between">
+    <div><strong>${symbol}</strong> <span class="small muted">(${INTERVAL})</span></div>
+    <div><button class="ghost" onclick="this.closest('.card').remove()">Close</button></div>
   </div>
-  <div id="body-${symbol}-${interval}"><div class="small muted">Fetching klines...</div></div>`;
-  analysisArea.prepend(card);
+  <div id="details-${symbol}"><div class="small muted">Fetching...</div></div>`;
+  document.getElementById('analysisArea').prepend(card);
 
   try {
-    const klines = await fetchKlines(symbol, interval, 500);
-    if (!klines || klines.length === 0) throw new Error('No klines returned');
+    const kl = await fetchKlines(symbol);
+    const closes = kl.map(k => k.close);
+    const opens = kl.map(k => k.open);
+    const highs = kl.map(k => k.high);
+    const lows = kl.map(k => k.low);
+    const rsi = calculateRSI(closes, 14);
+    const ema70 = calculateEMA(rsi, 70);
+    const ema200 = calculateEMA(rsi, 200);
+    const last = rsi.length - 1;
 
-    const closes = klines.map(k => k.close);
-    const opens  = klines.map(k => k.open);
-    const highs  = klines.map(k => k.high);
-    const lows   = klines.map(k => k.low);
-    const volumes= klines.map(k => k.volume);
-
-    const ema14 = calculateEMA(closes, 14);
-    const ema70 = calculateEMA(closes, 70);
-    const ema200= calculateEMA(closes, 200);
-    const rsi14 = calculateRSI(closes, 14);
-
-    const trend = getMainTrend(ema70, ema200, closes, opens, highs, lows);
-
-    const last = {
-      close: closes[closes.length-1],
-      ema14: ema14[ema14.length-1],
-      ema70: ema70[ema70.length-1],
-      ema200: ema200[ema200.length-1],
-      rsi14: rsi14[rsi14.length-1]
-    };
-
-    // Build result HTML
-    const body = document.getElementById(`body-${symbol}-${interval}`);
-    body.innerHTML = `
-      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
-        <div style="min-width:220px">
-          <div class="small muted">Last Close</div>
-          <div><strong>${last.close}</strong></div>
-        </div>
-        <div style="min-width:220px">
-          <div class="small muted">EMA14 / EMA70 / EMA200</div>
-          <div>${(isFinite(last.ema14)?last.ema14.toFixed(6):'n/a')} / ${(isFinite(last.ema70)?last.ema70.toFixed(6):'n/a')} / ${(isFinite(last.ema200)?last.ema200.toFixed(6):'n/a')}</div>
-        </div>
-        <div style="min-width:140px">
-          <div class="small muted">RSI14</div>
-          <div><strong>${isFinite(last.rsi14)?last.rsi14.toFixed(2):'n/a'}</strong></div>
-        </div>
-        <div style="min-width:220px">
-          <div class="small muted">Main Trend (EMA70 x EMA200)</div>
-          <div>
-            <strong>${trend.trend.toUpperCase()}</strong> (${trend.type})
-            ${trend.breakout===true?'<span class="status-green"> • Breakout</span>':''}
-            ${trend.breakout===false?'<span class="status-red"> • No breakout</span>':''}
-            ${trend.isNear?'<span class="small muted"> • Near level</span>':''}
-            ${trend.isDojiAfterBreakout?'<span class="small muted"> • Doji after breakout</span>':''}
-          </div>
-          <div class="small muted">Crossover price: ${isFinite(trend.crossoverPrice)?trend.crossoverPrice.toFixed(8):'n/a'}</div>
-        </div>
+    const details = document.getElementById(`details-${symbol}`);
+    details.innerHTML = `<div class="small muted">Last candle: ${new Date(kl[kl.length-1].ts).toISOString()}</div>
+      <div style="display:flex;gap:12px;margin-top:8px">
+        <div><strong>RSI</strong><div class="small">${isFinite(rsi[last])?rsi[last].toFixed(4):'n/a'}</div></div>
+        <div><strong>EMA70</strong><div class="small">${isFinite(ema70[last])?ema70[last].toFixed(4):'n/a'}</div></div>
+        <div><strong>EMA200</strong><div class="small">${isFinite(ema200[last])?ema200[last].toFixed(4):'n/a'}</div></div>
       </div>
-
-      <div style="margin-top:10px">
-        <details>
-          <summary class="small muted">Show last 8 candles</summary>
-          <pre>${klines.slice(-8).map(k => `${new Date(k.ts).toISOString()} O:${k.open} H:${k.high} L:${k.low} C:${k.close} V:${k.volume}`).join('\n')}</pre>
-        </details>
-      </div>
-    `;
+      <details style="margin-top:8px"><summary class="small muted">Show last 8 candles</summary>
+        <pre>${kl.slice(-8).map(k=>`${new Date(k.ts).toISOString()} O:${k.open} H:${k.high} L:${k.low} C:${k.close}`).join('\n')}</pre>
+      </details>`;
   } catch (err) {
-    const body = document.getElementById(`body-${symbol}-${interval}`);
-    body.innerHTML = `<div class="small muted">Error: ${err.message}</div>`;
+    const details = document.getElementById(`details-${symbol}`);
+    details.innerHTML = `<div class="small muted">Error: ${err.message}</div>`;
   }
-};
+}
 
-/* Wire up UI */
-searchInput.addEventListener('input', () => renderTable());
-refreshBtn.addEventListener('click', loadSymbols);
-limitSelect.addEventListener('change', renderTable);
+/* -------------------------
+   Main scanning logic with batching & delays
+   ------------------------- */
+scanBtn.addEventListener('click', async () => {
+  abortRequested = false;
+  stopBtn.disabled = false;
+  scanBtn.disabled = true;
+  clearResults();
+  setStatus('Loading symbols...');
+  try {
+    const symbols = await loadPerpetualUSDT();
+    setStatus(`Loaded ${symbols.length} symbols — starting scan (15m).`);
+    const batchSize = Number(document.getElementById('batchSize').value) || 5;
+    const minDelay = Number(document.getElementById('minDelay').value) || 500;
+    const batchPause = Number(document.getElementById('batchPause').value) || 2000;
+    const recentCandles = Number(document.getElementById('recentCandles').value) || 3;
 
-/* initial load */
-loadSymbols();
+    for (let i = 0; i < symbols.length; i += batchSize) {
+      if (abortRequested) break;
+      const batch = symbols.slice(i, i + batchSize);
+      setStatus(`Scanning ${i+1}-${i+batch.length} / ${symbols.length} ...`);
+      // sequential inside batch with short delay to be gentle on rate limits
+      for (let j = 0; j < batch.length; j++) {
+        if (abortRequested) break;
+        const sym = batch[j];
+        try {
+          const klines = await fetchKlines(sym, INTERVAL, KLINE_LIMIT);
+          const closes = klines.map(k => k.close);
+          // compute RSI on price closes
+          const rsi = calculateRSI(closes, 14);
+          // detect cross on RSI series
+          const cross = detectRecentEMACrossOnRSI(rsi, recentCandles);
+          if (cross) {
+            // timestamp for the candle where cross detected
+            const ts = klines[cross.timestampIndex] ? klines[cross.timestampIndex].ts : klines[klines.length-1].ts;
+            pushResult(cross.type, sym, cross, ts);
+          }
+        } catch (err) {
+          // ignore symbol errors but could log
+          // console.warn(sym, err.message);
+        }
+        // delay inside batch
+        await new Promise(res => setTimeout(res, minDelay));
+      }
+      // pause between batches
+      await new Promise(res => setTimeout(res, batchPause));
+    }
+
+    setStatus('Scan finished.');
+  } catch (err) {
+    setStatus(`Error: ${err.message}`);
+  } finally {
+    stopBtn.disabled = true;
+    scanBtn.disabled = false;
+  }
+});
+
+stopBtn.addEventListener('click', () => {
+  abortRequested = true;
+  setStatus('Abort requested — finishing current request then stopping...');
+});
+
+/* expose analyzeOne for buttons created dynamically */
+window.analyzeOne = analyzeOne;
+
+/* initial status */
+setStatus('Idle — ready');
 </script>
 </body>
 </html>
