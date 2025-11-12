@@ -1,111 +1,59 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>RSI(14) EMA70/EMA200 Cross Scanner — Binance Perpetual (15m)</title>
+  <meta charset="UTF-8" />
+  <title>Binance Futures RSI EMA Cross Scanner (15m)</title>
   <style>
-    :root{--bg:#07101a;--card:#0f1a2b;--muted:#9fb3d6;--accent:#1f6feb}
-    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;margin:16px;background:var(--bg);color:#e6eef8}
-    h1{font-size:18px;margin:0 0 8px}
-    .card{background:var(--card);border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 8px 26px rgba(2,8,23,.6)}
-    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
-    input,select{padding:6px;border-radius:6px;border:1px solid #243444;background:#07101a;color:#e6eef8}
-    button{padding:6px 10px;border-radius:6px;border:none;background:var(--accent);color:white;cursor:pointer}
-    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
-    .muted{color:var(--muted)}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .list{max-height:60vh;overflow:auto;padding:6px;border-radius:6px;background:#06121b}
-    .item{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);display:flex;justify-content:space-between;gap:8px;align-items:center}
-    .symbol{font-weight:600}
-    .small{font-size:12px;color:var(--muted)}
-    pre{white-space:pre-wrap;background:#081421;padding:8px;border-radius:6px;color:#cfe9ff}
+    body { font-family: monospace; background: #0b0c10; color: #eee; padding: 10px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    th, td { border: 1px solid #333; padding: 4px 8px; text-align: left; }
+    th { background: #1f2833; }
+    .bullish { color: #00ff88; }
+    .bearish { color: #ff5555; }
+    .loading { color: #ccc; }
   </style>
 </head>
 <body>
-  <h1>RSI(14) EMA70/EMA200 Cross Scanner — Binance Perpetual (15m)</h1>
-
-  <div class="card">
-    <div class="controls">
-      <button id="scanBtn">Scan All (15m)</button>
-      <button id="stopBtn" disabled class="ghost">Stop</button>
-
-      <label class="small muted">Batch size:
-        <select id="batchSize">
-          <option value="3">3</option>
-          <option value="5" selected>5</option>
-          <option value="10">10</option>
-        </select>
-      </label>
-
-      <label class="small muted">Delay inside batch (ms):
-        <select id="minDelay">
-          <option value="300">300</option>
-          <option value="500" selected>500</option>
-          <option value="700">700</option>
-        </select>
-      </label>
-
-      <label class="small muted">Batch pause (ms):
-        <select id="batchPause">
-          <option value="1000">1s</option>
-          <option value="2000" selected>2s</option>
-          <option value="4000">4s</option>
-        </select>
-      </label>
-
-      <label class="small muted">Recent candles to check:
-        <select id="recentCandles">
-          <option value="2">2</option>
-          <option value="3" selected>3</option>
-          <option value="5">5</option>
-        </select>
-      </label>
-
-      <div style="margin-left:auto" class="small muted" id="status">Idle</div>
-    </div>
-
-    <div class="small muted">This scans Binance Futures USDⓈ-M perpetual USDT pairs and checks for EMA70/EMA200 cross on RSI(14) (on 15m timeframe). Use Scan All to start. Be mindful of rate limits — defaults include batching/delays.</div>
-  </div>
-
-  <div class="grid">
-    <div class="card">
-      <h3 style="margin-top:0">✅ Bullish Crosses (EMA70 → EMA200)</h3>
-      <div id="bullList" class="list"></div>
-    </div>
-
-    <div class="card">
-      <h3 style="margin-top:0">🔻 Bearish Crosses (EMA70 ↓ EMA200)</h3>
-      <div id="bearList" class="list"></div>
-    </div>
-  </div>
-
-  <div id="analysisArea"></div>
+  <h2>🚀 RSI EMA70 / EMA200 Cross Scanner — 15m Binance Futures USDT</h2>
+  <p id="status" class="loading">Fetching symbols...</p>
+  <table>
+    <thead>
+      <tr><th>Symbol</th><th>Cross Type</th><th>Candle Time</th></tr>
+    </thead>
+    <tbody id="results"></tbody>
+  </table>
 
 <script>
-/* -------------------------
-   Config / endpoints
-   ------------------------- */
-const BINANCE_FAPI = 'https://fapi.binance.com';
-const INTERVAL = '15m';
-const KLINE_LIMIT = 500; // max 1500 available; 500 OK for EMA200 on RSI
+function calculateEMA(data, period) {
+  const k = 2 / (period + 1);
+  const ema = [];
+  let prevEma = null;
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) { ema.push(NaN); continue; }
+    if (i === period - 1) {
+      const sma = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+      prevEma = sma;
+    }
+    if (prevEma !== null) {
+      const currEma = data[i] * k + prevEma * (1 - k);
+      ema.push(currEma);
+      prevEma = currEma;
+    }
+  }
+  return ema;
+}
 
-/* -------------------------
-   RSI function (user's)
-   ------------------------- */
 function calculateRSI(closes, period = 14) {
   if (!Array.isArray(closes) || closes.length <= period) return [];
   const rsi = [];
-  let gains = 0;
-  let losses = 0;
+  let gains = 0, losses = 0;
   for (let i = 1; i <= period; i++) {
     const diff = closes[i] - closes[i - 1];
-    if (diff > 0) gains += diff;
-    else losses -= diff;
+    if (diff > 0) gains += diff; else losses -= diff;
   }
   let avgGain = gains / period;
   let avgLoss = losses / period;
-  let rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
+  let rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
   rsi[period] = 100 - 100 / (1 + rs);
   for (let i = period + 1; i < closes.length; i++) {
     const diff = closes[i] - closes[i - 1];
@@ -113,249 +61,89 @@ function calculateRSI(closes, period = 14) {
     const loss = diff < 0 ? -diff : 0;
     avgGain = (avgGain * (period - 1) + gain) / period;
     avgLoss = (avgLoss * (period - 1) + loss) / period;
-    rs = avgLoss === 0 ? Number.POSITIVE_INFINITY : avgGain / avgLoss;
+    rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
     rsi[i] = 100 - 100 / (1 + rs);
   }
   for (let i = 0; i < period; i++) rsi[i] = NaN;
   return rsi;
 }
 
-/* -------------------------
-   EMA helper
-   ------------------------- */
-function calculateEMA(values, period) {
-  if (!Array.isArray(values) || values.length === 0) return [];
-  const k = 2 / (period + 1);
-  const ema = [];
-  let sum = 0;
-  for (let i = 0; i < values.length; i++) {
-    const v = values[i];
-    if (i < period) {
-      sum += v;
-      ema[i] = NaN;
-      if (i === period - 1) {
-        const sma = sum / period;
-        ema[i] = sma;
-      }
-    } else {
-      ema[i] = (v - ema[i - 1]) * k + ema[i - 1];
-    }
-  }
-  return ema;
+async function fetchSymbols() {
+  const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
+  const data = await res.json();
+  return data.symbols
+    .filter(s => s.symbol.endsWith('USDT') && s.contractType === 'PERPETUAL')
+    .map(s => s.symbol);
 }
 
-/* -------------------------
-   Utility fetch
-   ------------------------- */
-async function fetchJson(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  return r.json();
-}
-
-/* -------------------------
-   Get perpetual USDT symbols
-   ------------------------- */
-async function loadPerpetualUSDT() {
-  const info = await fetchJson(`${BINANCE_FAPI}/fapi/v1/exchangeInfo`);
-  const list = (info.symbols || []).filter(s => {
-    const isPerp = (s.contractType && s.contractType.toUpperCase() === 'PERPETUAL') || s.symbol.endsWith('USDT');
-    const isUSDT = (s.quoteAsset && s.quoteAsset.toUpperCase() === 'USDT') || s.symbol.endsWith('USDT');
-    return isPerp && isUSDT;
-  }).map(s => s.symbol);
-  return Array.from(new Set(list)).sort();
-}
-
-/* -------------------------
-   Fetch klines
-   ------------------------- */
-async function fetchKlines(symbol, interval = INTERVAL, limit = KLINE_LIMIT) {
-  const url = `${BINANCE_FAPI}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`;
-  const raw = await fetchJson(url);
-  return raw.map(c => ({
-    ts: c[0],
+async function fetchKlines(symbol) {
+  const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=500`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.map(c => ({
+    time: c[0],
     open: +c[1],
     high: +c[2],
     low: +c[3],
-    close: +c[4],
-    vol: +c[5]
+    close: +c[4]
   }));
 }
 
-/* -------------------------
-   Crossover detection (EMA70 vs EMA200 on RSI series)
-   - checks the last `recentCandles` candles for a cross event
-   - returns the newest cross object or null
-   ------------------------- */
-function detectRecentEMACrossOnRSI(rsiValues, recentCandles = 3) {
-  // build ema arrays
-  const ema70 = calculateEMA(rsiValues, 70);
-  const ema200 = calculateEMA(rsiValues, 200);
-
-  const n = Math.min(rsiValues.length, ema70.length, ema200.length);
-  if (n === 0) return null;
-
-  // Ensure we have valid (finite) EMA200 near the end; otherwise can't detect
-  const lastIndex = n - 1;
-  if (!isFinite(ema200[lastIndex])) return null;
-
-  // limit scan window
-  const startIdx = Math.max(1, lastIndex - recentCandles + 1); // need prev index to compare
-  // we want the newest cross (iterate backwards).
-  for (let i = lastIndex; i >= startIdx; i--) {
-    const prev = i - 1;
-    if (prev < 0) continue;
-    const prev70 = ema70[prev], prev200 = ema200[prev];
-    const cur70 = ema70[i], cur200 = ema200[i];
-    if (!isFinite(prev70) || !isFinite(prev200) || !isFinite(cur70) || !isFinite(cur200)) continue;
-
-    // Bullish cross: prev70 <= prev200 && cur70 > cur200
-    if (prev70 <= prev200 && cur70 > cur200) {
-      return { type: 'bullish', index: i, timestampIndex: i, ema70: cur70, ema200: cur200, rsi: rsiValues[i] };
-    }
-    // Bearish cross: prev70 >= prev200 && cur70 < cur200
-    if (prev70 >= prev200 && cur70 < cur200) {
-      return { type: 'bearish', index: i, timestampIndex: i, ema70: cur70, ema200: cur200, rsi: rsiValues[i] };
-    }
+function detectRSICrossover(rsi, ema70, ema200) {
+  for (let i = rsi.length - 3; i >= 1; i--) {
+    const prev70 = ema70[i - 1], prev200 = ema200[i - 1];
+    const curr70 = ema70[i], curr200 = ema200[i];
+    if (prev70 <= prev200 && curr70 > curr200)
+      return { type: 'bullish', index: i };
+    if (prev70 >= prev200 && curr70 < curr200)
+      return { type: 'bearish', index: i };
   }
   return null;
 }
 
-/* -------------------------
-   UI helpers
-   ------------------------- */
-const scanBtn = document.getElementById('scanBtn');
-const stopBtn = document.getElementById('stopBtn');
-const statusEl = document.getElementById('status');
-const bullList = document.getElementById('bullList');
-const bearList = document.getElementById('bearList');
+(async () => {
+  const status = document.getElementById('status');
+  const tbody = document.getElementById('results');
+  const symbols = await fetchSymbols();
+  status.textContent = `Scanning ${symbols.length} pairs...`;
 
-let abortRequested = false;
+  const BATCH_SIZE = 5;
+  const MIN_DELAY = 400, MAX_DELAY = 800;
+  let count = 0;
 
-function setStatus(txt) { statusEl.textContent = txt; }
-function clearResults() { bullList.innerHTML = ''; bearList.innerHTML = ''; }
+  for (let i = 0; i < symbols.length; i++) {
+    const sym = symbols[i];
+    try {
+      const candles = await fetchKlines(sym);
+      const closes = candles.map(c => c.close);
+      const rsi = calculateRSI(closes, 14);
+      const ema70 = calculateEMA(rsi, 70);
+      const ema200 = calculateEMA(rsi, 200);
+      const cross = detectRSICrossover(rsi, ema70, ema200);
 
-/* Add result item */
-function pushResult(type, symbol, cross, candleTs) {
-  const container = type === 'bullish' ? bullList : bearList;
-  const div = document.createElement('div');
-  div.className = 'item';
-  const left = document.createElement('div');
-  left.innerHTML = `<div class="symbol">${symbol}</div>
-    <div class="small">Time: ${new Date(candleTs).toISOString()} | RSI: ${isFinite(cross.rsi)?cross.rsi.toFixed(3):'n/a'}</div>
-    <div class="small">EMA70: ${isFinite(cross.ema70)?cross.ema70.toFixed(3):'n/a'} | EMA200: ${isFinite(cross.ema200)?cross.ema200.toFixed(3):'n/a'}</div>`;
-  const right = document.createElement('div');
-  right.style.textAlign = 'right';
-  right.innerHTML = `<button class="ghost" onclick="analyzeOne('${symbol}')">Analyze</button>`;
-  div.appendChild(left); div.appendChild(right);
-  container.appendChild(div);
-}
-
-/* Show detailed analysis card for one symbol */
-async function analyzeOne(symbol) {
-  const card = document.createElement('div');
-  card.className = 'card';
-  card.innerHTML = `<div style="display:flex;justify-content:space-between">
-    <div><strong>${symbol}</strong> <span class="small muted">(${INTERVAL})</span></div>
-    <div><button class="ghost" onclick="this.closest('.card').remove()">Close</button></div>
-  </div>
-  <div id="details-${symbol}"><div class="small muted">Fetching...</div></div>`;
-  document.getElementById('analysisArea').prepend(card);
-
-  try {
-    const kl = await fetchKlines(symbol);
-    const closes = kl.map(k => k.close);
-    const opens = kl.map(k => k.open);
-    const highs = kl.map(k => k.high);
-    const lows = kl.map(k => k.low);
-    const rsi = calculateRSI(closes, 14);
-    const ema70 = calculateEMA(rsi, 70);
-    const ema200 = calculateEMA(rsi, 200);
-    const last = rsi.length - 1;
-
-    const details = document.getElementById(`details-${symbol}`);
-    details.innerHTML = `<div class="small muted">Last candle: ${new Date(kl[kl.length-1].ts).toISOString()}</div>
-      <div style="display:flex;gap:12px;margin-top:8px">
-        <div><strong>RSI</strong><div class="small">${isFinite(rsi[last])?rsi[last].toFixed(4):'n/a'}</div></div>
-        <div><strong>EMA70</strong><div class="small">${isFinite(ema70[last])?ema70[last].toFixed(4):'n/a'}</div></div>
-        <div><strong>EMA200</strong><div class="small">${isFinite(ema200[last])?ema200[last].toFixed(4):'n/a'}</div></div>
-      </div>
-      <details style="margin-top:8px"><summary class="small muted">Show last 8 candles</summary>
-        <pre>${kl.slice(-8).map(k=>`${new Date(k.ts).toISOString()} O:${k.open} H:${k.high} L:${k.low} C:${k.close}`).join('\n')}</pre>
-      </details>`;
-  } catch (err) {
-    const details = document.getElementById(`details-${symbol}`);
-    details.innerHTML = `<div class="small muted">Error: ${err.message}</div>`;
-  }
-}
-
-/* -------------------------
-   Main scanning logic with batching & delays
-   ------------------------- */
-scanBtn.addEventListener('click', async () => {
-  abortRequested = false;
-  stopBtn.disabled = false;
-  scanBtn.disabled = true;
-  clearResults();
-  setStatus('Loading symbols...');
-  try {
-    const symbols = await loadPerpetualUSDT();
-    setStatus(`Loaded ${symbols.length} symbols — starting scan (15m).`);
-    const batchSize = Number(document.getElementById('batchSize').value) || 5;
-    const minDelay = Number(document.getElementById('minDelay').value) || 500;
-    const batchPause = Number(document.getElementById('batchPause').value) || 2000;
-    const recentCandles = Number(document.getElementById('recentCandles').value) || 3;
-
-    for (let i = 0; i < symbols.length; i += batchSize) {
-      if (abortRequested) break;
-      const batch = symbols.slice(i, i + batchSize);
-      setStatus(`Scanning ${i+1}-${i+batch.length} / ${symbols.length} ...`);
-      // sequential inside batch with short delay to be gentle on rate limits
-      for (let j = 0; j < batch.length; j++) {
-        if (abortRequested) break;
-        const sym = batch[j];
-        try {
-          const klines = await fetchKlines(sym, INTERVAL, KLINE_LIMIT);
-          const closes = klines.map(k => k.close);
-          // compute RSI on price closes
-          const rsi = calculateRSI(closes, 14);
-          // detect cross on RSI series
-          const cross = detectRecentEMACrossOnRSI(rsi, recentCandles);
-          if (cross) {
-            // timestamp for the candle where cross detected
-            const ts = klines[cross.timestampIndex] ? klines[cross.timestampIndex].ts : klines[klines.length-1].ts;
-            pushResult(cross.type, sym, cross, ts);
-          }
-        } catch (err) {
-          // ignore symbol errors but could log
-          // console.warn(sym, err.message);
-        }
-        // delay inside batch
-        await new Promise(res => setTimeout(res, minDelay));
+      if (cross) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${sym}</td>
+          <td class="${cross.type}">${cross.type.toUpperCase()}</td>
+          <td>${new Date(candles[cross.index].time).toLocaleString()}</td>
+        `;
+        tbody.appendChild(row);
       }
-      // pause between batches
-      await new Promise(res => setTimeout(res, batchPause));
+    } catch (err) {
+      console.error(sym, err);
     }
 
-    setStatus('Scan finished.');
-  } catch (err) {
-    setStatus(`Error: ${err.message}`);
-  } finally {
-    stopBtn.disabled = true;
-    scanBtn.disabled = false;
+    count++;
+    if (count % BATCH_SIZE === 0)
+      await new Promise(r => setTimeout(r, 2000)); // batch pause
+
+    await new Promise(r =>
+      setTimeout(r, Math.random() * (MAX_DELAY - MIN_DELAY) + MIN_DELAY)
+    );
   }
-});
-
-stopBtn.addEventListener('click', () => {
-  abortRequested = true;
-  setStatus('Abort requested — finishing current request then stopping...');
-});
-
-/* expose analyzeOne for buttons created dynamically */
-window.analyzeOne = analyzeOne;
-
-/* initial status */
-setStatus('Idle — ready');
+  status.textContent = `✅ Scan complete!`;
+})();
 </script>
 </body>
 </html>
