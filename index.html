@@ -2,28 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Binance Futures RSI EMA Cross Scanner (15m)</title>
+  <title>RSI EMA70 / EMA200 Cross Scanner — 15m Futures</title>
   <style>
     body { font-family: monospace; background: #0b0c10; color: #eee; padding: 10px; }
     table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-    th, td { border: 1px solid #333; padding: 4px 8px; text-align: left; }
+    th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; }
     th { background: #1f2833; }
-    .bullish { color: #00ff88; }
-    .bearish { color: #ff5555; }
-    .loading { color: #ccc; }
+    .bullish { color: #00ff88; font-weight: bold; }
+    .bearish { color: #ff5555; font-weight: bold; }
+    .loading { color: #aaa; }
   </style>
 </head>
 <body>
-  <h2>🚀 RSI EMA70 / EMA200 Cross Scanner — 15m Binance Futures USDT</h2>
+  <h2>🚀 RSI EMA70 / EMA200 Cross Scanner — 15 min Binance Futures USDT</h2>
   <p id="status" class="loading">Fetching symbols...</p>
   <table>
     <thead>
-      <tr><th>Symbol</th><th>Cross Type</th><th>Candle Time</th></tr>
+      <tr><th>Symbol</th><th>Signal</th><th>Time</th><th>Minutes Ago</th></tr>
     </thead>
     <tbody id="results"></tbody>
   </table>
 
 <script>
+/* ---------- EMA ---------- */
 function calculateEMA(data, period) {
   const k = 2 / (period + 1);
   const ema = [];
@@ -43,6 +44,7 @@ function calculateEMA(data, period) {
   return ema;
 }
 
+/* ---------- RSI ---------- */
 function calculateRSI(closes, period = 14) {
   if (!Array.isArray(closes) || closes.length <= period) return [];
   const rsi = [];
@@ -68,6 +70,29 @@ function calculateRSI(closes, period = 14) {
   return rsi;
 }
 
+/* ---------- Detect Recent RSI Cross ---------- */
+function detectRecentRSICross(rsi, ema70, ema200) {
+  const len = rsi.length;
+  const lookback = 3; // last 3 candles (~45 min)
+  for (let i = len - lookback; i < len; i++) {
+    const prevRSI = rsi[i - 1], currRSI = rsi[i];
+    const prev70 = ema70[i - 1], curr70 = ema70[i];
+    const prev200 = ema200[i - 1], curr200 = ema200[i];
+    // Bullish: RSI crosses above both EMAs
+    if (prevRSI <= prev70 && prevRSI <= prev200 &&
+        currRSI > curr70 && currRSI > curr200) {
+      return { type: 'bullish', index: i };
+    }
+    // Bearish: RSI crosses below both EMAs
+    if (prevRSI >= prev70 && prevRSI >= prev200 &&
+        currRSI < curr70 && currRSI < curr200) {
+      return { type: 'bearish', index: i };
+    }
+  }
+  return null;
+}
+
+/* ---------- Fetch Data ---------- */
 async function fetchSymbols() {
   const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
   const data = await res.json();
@@ -89,18 +114,7 @@ async function fetchKlines(symbol) {
   }));
 }
 
-function detectRSICrossover(rsi, ema70, ema200) {
-  for (let i = rsi.length - 3; i >= 1; i--) {
-    const prev70 = ema70[i - 1], prev200 = ema200[i - 1];
-    const curr70 = ema70[i], curr200 = ema200[i];
-    if (prev70 <= prev200 && curr70 > curr200)
-      return { type: 'bullish', index: i };
-    if (prev70 >= prev200 && curr70 < curr200)
-      return { type: 'bearish', index: i };
-  }
-  return null;
-}
-
+/* ---------- Main Scanner ---------- */
 (async () => {
   const status = document.getElementById('status');
   const tbody = document.getElementById('results');
@@ -119,16 +133,21 @@ function detectRSICrossover(rsi, ema70, ema200) {
       const rsi = calculateRSI(closes, 14);
       const ema70 = calculateEMA(rsi, 70);
       const ema200 = calculateEMA(rsi, 200);
-      const cross = detectRSICrossover(rsi, ema70, ema200);
+      const cross = detectRecentRSICross(rsi, ema70, ema200);
 
       if (cross) {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${sym}</td>
-          <td class="${cross.type}">${cross.type.toUpperCase()}</td>
-          <td>${new Date(candles[cross.index].time).toLocaleString()}</td>
-        `;
-        tbody.appendChild(row);
+        const candle = candles[cross.index];
+        const minsAgo = ((Date.now() - candle.time) / 60000).toFixed(1);
+        if (minsAgo <= 45) { // only show crosses within last 45 min
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${sym}</td>
+            <td class="${cross.type}">${cross.type.toUpperCase()}</td>
+            <td>${new Date(candle.time).toLocaleString()}</td>
+            <td>${minsAgo}</td>
+          `;
+          tbody.appendChild(row);
+        }
       }
     } catch (err) {
       console.error(sym, err);
@@ -136,7 +155,7 @@ function detectRSICrossover(rsi, ema70, ema200) {
 
     count++;
     if (count % BATCH_SIZE === 0)
-      await new Promise(r => setTimeout(r, 2000)); // batch pause
+      await new Promise(r => setTimeout(r, 2000)); // pause between batches
 
     await new Promise(r =>
       setTimeout(r, Math.random() * (MAX_DELAY - MIN_DELAY) + MIN_DELAY)
