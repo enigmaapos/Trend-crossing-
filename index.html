@@ -31,9 +31,10 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;b
 <div class="grid">
 <section class="card span12">
 <h2>⌕ Discover collectibles</h2>
-<p class="small">Scans token IDs for the specified OpenSea-associated Polygon ERC-1155 contract. Each result includes an OpenSea lookup link. Supply is marked ‘Supply unverified’ unless a trustworthy source provides a value; OpenSea API-wide discovery requires a secured backend and API key.</p>
+<p class="small">Scans token IDs for the specified OpenSea-associated Polygon ERC-1155 contract. Each result includes an OpenSea lookup link. Supply is marked ‘Supply unverified’ unless a trustworthy source provides a value; If Blockscout rejects this contract, an optional OpenSea API key can be tried as a fallback. For regular use, keep API keys on a backend.</p>
 <div class="controls">
 <div><label for="contract">Polygon token contract</label><input id="contract" spellcheck="false" value="0x2953399124F0cBB46d2CbACD8A89cF0599974963"></div>
+<div><label for="openseaKey">OpenSea API key (optional fallback)</label><input id="openseaKey" type="password" autocomplete="off" placeholder="Paste API key for OpenSea fallback"></div>
 <div><label for="sort">Sort archive by</label><select id="sort"><option value="score">Antiquity score</option><option value="date">Earliest date (when known)</option><option value="supply">Lowest supply</option><option value="value">Estimated value (manual)</option></select></div>
 <button id="scan">Scan contract</button>
 </div>
@@ -105,17 +106,42 @@ $('examples').onclick=()=>{items=sample.map(x=>({...x}));liveSource=false;$('sou
 $('export').onclick=()=>{const rows=[['name','token_id','mint_date','supply','score','value','verified'],...items.map(x=>[x.name,x.tokenId,x.date,x.supply,x.score,x.value,x.verified])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='digital-antiquities-archive.csv';a.click();URL.revokeObjectURL(a.href)};
 $('scan').onclick=scanContract;
 async function scanContract(){
- const addr=$('contract').value.trim();if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){$('scanStatus').className='status error';$('scanStatus').textContent='Enter a valid 0x contract address.';return}
- $('scan').disabled=true;$('scanStatus').className='status';$('scanStatus').textContent='Querying public Polygon Blockscout token-instance endpoint…';$('source').textContent='Connecting';
+ const addr=$('contract').value.trim(), apiKey=$('openseaKey')?.value.trim();
+ if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){$('scanStatus').className='status error';$('scanStatus').textContent='Enter a valid 0x contract address.';return}
+ $('scan').disabled=true;$('scanStatus').className='status';$('scanStatus').textContent='Trying Polygon Blockscout…';$('source').textContent='Connecting';
+ let blockscoutError='';
  try{
-   const url=`https://polygon.blockscout.com/api/v2/tokens/${addr}/instances?items_count=50`;
-   const res=await fetch(url,{headers:{accept:'application/json'}});if(!res.ok)throw new Error('Public explorer returned HTTP '+res.status);
-   const data=await res.json();const arr=data.items||data.instances||[];if(!arr.length)throw new Error('No token instances returned. This endpoint may not expose this ERC-1155 contract or may require a different explorer query.');
-   items=arr.map((t,i)=>{const id=String(t.id??t.token_id??t.tokenId??('unknown-'+i));const meta=t.metadata||{};const rawSupply=t.total_supply??t.totalSupply??t.supply??null;const supply=rawSupply===null||rawSupply===undefined||rawSupply===''?null:Number(rawSupply);const d=t.mint&&t.mint.timestamp?t.mint.timestamp:null;const date=d?String(d).slice(0,10):null;let x={id:addr.toLowerCase()+'-'+id,tokenId:id,name:meta.name||t.name||('Polygon token #'+id),date,supply:supply===null?'Supply unverified':supply,creator:t.creator?.hash||t.mint?.address?.hash||'Unknown',score:0,rarity:supply===1?'Single-copy candidate':supply&&supply<=10?'Very limited':'Supply unverified',value:'Not established',verified:!!(date&&supply!==null),desc:'Explorer instance data; verify mint event, original quantity, creator, and metadata before classifying.'};x.score=scoreItem(x);x.emoji='◇';return x});
-   $('source').textContent='Blockscout';$('scanStatus').className='status good';$('scanStatus').textContent=`Loaded ${items.length} token instances from the public explorer. Mint date/supply fields may be absent; blank data is not proof of rarity.`;render();
- }catch(e){$('source').textContent='Unavailable';$('scanStatus').className='status error';$('scanStatus').textContent='Live scan did not return usable token instances: '+e.message+' Try again later or load illustrative examples. For comprehensive discovery, a backend/indexer and marketplace API key may be needed.'}
- finally{$('scan').disabled=false}
+   // Blockscout's documented instances endpoint does not use items_count.
+   const url=`https://polygon.blockscout.com/api/v2/tokens/${addr}/instances`;
+   const res=await fetch(url,{headers:{accept:'application/json'}});
+   if(!res.ok) throw new Error('Blockscout HTTP '+res.status+(res.status===422?' (this endpoint may reject this large/shared ERC-1155 contract)':''));
+   const data=await res.json(), arr=data.items||data.instances||[];
+   if(!arr.length) throw new Error('Blockscout returned no token instances');
+   items=arr.map((t,i)=>{const id=String(t.id??t.token_id??t.tokenId??('unknown-'+i));const meta=t.metadata||{};const rawSupply=t.total_supply??t.totalSupply??t.supply??null;const supply=rawSupply===null||rawSupply===undefined||rawSupply===''?null:Number(rawSupply);const d=t.mint&&t.mint.timestamp?t.mint.timestamp:null;const date=d?String(d).slice(0,10):null;let x={id:addr.toLowerCase()+'-'+id,tokenId:id,name:meta.name||t.name||('Polygon token #'+id),date,supply:supply===null?'Supply unverified':supply,creator:t.creator?.hash||t.mint?.address?.hash||'Unknown',score:0,rarity:supply===1?'Single-copy candidate':supply!==null&&supply<=10?'Very limited':'Supply unverified',value:'Not established',verified:!!(date&&supply!==null),desc:'Explorer instance data. Mint date and original quantity still require independent verification.'};x.score=scoreItem(x);x.emoji='◇';return x});
+   $('source').textContent='Blockscout';$('scanStatus').className='status good';$('scanStatus').textContent=`Loaded ${items.length} token instances from Blockscout. Missing supply is not proof of rarity.`;render();return;
+ }catch(e){blockscoutError=e.message}
+ if(apiKey){
+   $('scanStatus').textContent='Blockscout unavailable; trying OpenSea API…';
+   try{
+     const url=`https://api.opensea.io/api/v2/chain/polygon/contract/${addr}/nfts?limit=50`;
+     const res=await fetch(url,{headers:{accept:'application/json','x-api-key':apiKey}});
+     if(!res.ok){let detail='';try{detail=(await res.text()).slice(0,220)}catch{};throw new Error('OpenSea API HTTP '+res.status+(detail?': '+detail:''))}
+     const data=await res.json(), arr=data.nfts||data.items||[];
+     if(!arr.length) throw new Error('OpenSea returned no NFTs for this contract/page');
+     items=arr.filter(t=>!t.contract||String(t.contract).toLowerCase()===addr.toLowerCase()).map((t,i)=>{
+       const id=String(t.identifier??t.token_id??t.id??('unknown-'+i));
+       const x={id:addr.toLowerCase()+'-'+id,tokenId:id,name:t.name||t.title||('Polygon token #'+id),date:null,supply:'Supply unverified',creator:'Unknown',score:10,rarity:'Supply unverified',value:'Not established',verified:false,desc:'OpenSea metadata result. Original mint date and ERC-1155 original quantity were not established by this response.',emoji:'◇'};
+       x.score=scoreItem(x);return x;
+     });
+     if(!items.length) throw new Error('No matching NFTs returned for the specified contract');
+     $('source').textContent='OpenSea API';$('scanStatus').className='status good';$('scanStatus').textContent=`Loaded ${items.length} OpenSea NFT records for this contract page. API pagination may have more; supply and mint dates remain unverified.`;render();return;
+   }catch(e){$('source').textContent='Unavailable';$('scanStatus').className='status error';$('scanStatus').textContent=`Blockscout failed (${blockscoutError}); OpenSea fallback failed (${e.message}).`}
+ }else{
+   $('source').textContent='Unavailable';$('scanStatus').className='status error';$('scanStatus').textContent=`Live scan failed: ${blockscoutError}. The previous request still used an unsupported items_count parameter; this version removes it. If this contract is still rejected, enter an OpenSea API key above to try the fallback. OpenSea keys entered here are visible to this browser page; a backend is safer.`;
+ }
+ $('scan').disabled=false;
 }
+
 render();
 </script>
 </body>
