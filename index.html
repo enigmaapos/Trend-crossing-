@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Digital Antiquities — Early Mint Archive</title>
+<style>
+:root{--bg:#0b1015;--panel:#121b22;--panel2:#17232c;--line:#293a45;--text:#edf4f5;--muted:#9bb0b9;--gold:#e5bd72;--teal:#78d7c2;--red:#f18a8a;--blue:#8ebeff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#17242a 0,#0b1015 55%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+header{padding:28px max(18px,calc((100% - 1240px)/2));border-bottom:1px solid var(--line);background:#0b1015cc}
+.brand{letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-size:12px;font-weight:800}.hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-end;flex-wrap:wrap}h1{font-size:clamp(28px,4vw,44px);line-height:1.1;margin:10px 0}p{color:var(--muted);margin:8px 0}.hero p{max-width:720px}
+.pill{display:inline-flex;align-items:center;gap:8px;border:1px solid #395149;background:#14251f;color:var(--teal);border-radius:99px;padding:7px 12px;font-size:12px;font-weight:700}
+main{max-width:1240px;margin:auto;padding:22px 18px 50px}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}.card{background:linear-gradient(145deg,#152129,#10171d);border:1px solid var(--line);border-radius:16px;padding:18px;min-width:0}.span12{grid-column:span 12}.span8{grid-column:span 8}.span4{grid-column:span 4}.span6{grid-column:span 6}
+@media(max-width:800px){.span8,.span4,.span6{grid-column:span 12}}
+h2{font-size:17px;margin:0 0 12px}h3{font-size:15px;margin:0 0 7px}.muted{color:var(--muted)}.small{font-size:12px;color:var(--muted)}label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}
+input,select,button{font:inherit;border-radius:9px;border:1px solid #344954;background:#0b1319;color:var(--text);padding:11px 12px;min-width:0}input,select{width:100%}button{cursor:pointer;font-weight:750;background:var(--gold);color:#1b1710;border-color:var(--gold)}button.secondary{background:#18262e;color:var(--text);border-color:#344954}button:hover{filter:brightness(1.08)}button:disabled{opacity:.5;cursor:wait}
+.controls{display:grid;grid-template-columns:minmax(0,2fr) minmax(140px,1fr) auto;gap:10px;align-items:end}@media(max-width:620px){.controls{grid-template-columns:1fr}.controls button{width:100%}}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}@media(max-width:620px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{padding:12px;background:#0d151b;border:1px solid var(--line);border-radius:11px}.stat strong{display:block;font-size:21px;color:var(--gold)}.stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.toolbar input{max-width:300px}.toolbar select{width:auto;max-width:220px}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}@media(max-width:900px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:580px){.cards{grid-template-columns:1fr}}
+.nft{border:1px solid var(--line);background:#0d151b;border-radius:13px;overflow:hidden}.art{height:145px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%,#384b4e,#101a20 65%);font-size:48px}.nftbody{padding:13px}.tag{font-size:10px;letter-spacing:.09em;text-transform:uppercase;border:1px solid #45565c;color:var(--gold);border-radius:5px;padding:3px 6px;display:inline-block;margin-bottom:8px}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.score{font-size:23px;color:var(--teal);font-weight:800}.meter{height:5px;background:#26363d;border-radius:10px;overflow:hidden;margin:9px 0}.meter i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--gold))}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.metric{background:#142028;padding:8px;border-radius:8px}.metric b{display:block;font-size:13px}.metric span{font-size:10px;color:var(--muted);text-transform:uppercase}.nft button{width:100%;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;border-bottom:1px solid var(--line);padding:10px 8px}th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.07em}td{overflow-wrap:anywhere}
+.auctiongrid{display:grid;grid-template-columns:1.1fr 1fr;gap:14px}@media(max-width:700px){.auctiongrid{grid-template-columns:1fr}}
+.notice{border-left:3px solid var(--gold);background:#241f16;padding:12px 14px;border-radius:7px;color:#e6d8bb;font-size:12px}.status{font-size:12px;margin-top:10px;color:var(--muted);min-height:18px}.status.error{color:var(--red)}.status.good{color:var(--teal)}.footer{border-top:1px solid var(--line);margin-top:24px;padding-top:18px;color:var(--muted);font-size:12px}.empty{padding:30px;text-align:center;color:var(--muted);border:1px dashed #344954;border-radius:12px}.hidden{display:none!important}
+</style>
+</head>
+<body>
+<header><div class="hero"><div><div class="brand">Digital Antiquities · Early Mint Archive</div><h1>History you can verify.<br><span style="color:var(--gold)">Scarcity you can investigate.</span></h1><p>A research-first explorer for early Polygon collectibles: inspect token IDs, investigate mint history, score archival significance, and track auction interest.</p></div><div class="pill">● Archive workspace</div></div></header>
+<main>
+<div class="grid">
+<section class="card span12">
+<h2>⌕ Discover collectibles</h2>
+<p class="small">Default target is the OpenSea-associated Polygon ERC-1155 contract from your research notes. The scanner tries a public Blockscout endpoint; public APIs may rate-limit or return incomplete ERC-1155 history.</p>
+<div class="controls">
+<div><label for="contract">Polygon token contract</label><input id="contract" spellcheck="false" value="0x2953399124F0cBB46d2CbACD8A89cF0599974963"></div>
+<div><label for="sort">Sort archive by</label><select id="sort"><option value="score">Antiquity score</option><option value="date">Earliest date (when known)</option><option value="supply">Lowest supply</option><option value="value">Estimated value (manual)</option></select></div>
+<button id="scan">Scan contract</button>
+</div>
+<div class="stats">
+<div class="stat"><span>Items loaded</span><strong id="count">0</strong></div><div class="stat"><span>Verified mint dates</span><strong id="verified">0</strong></div><div class="stat"><span>Single-copy candidates</span><strong id="single">0</strong></div><div class="stat"><span>Data source</span><strong style="font-size:15px" id="source">Not scanned</strong></div>
+</div><div id="scanStatus" class="status">Ready. Scan to try loading on-chain token instances.</div>
+</section>
+<section class="card span12">
+<div class="row" style="margin-bottom:12px;flex-wrap:wrap"><div><h2>🏺 Candidate archive</h2><p class="small">Scores indicate research priority, not guaranteed market value.</p></div><div class="toolbar"><input id="search" placeholder="Search name, token ID, creator…"><select id="rarityFilter"><option value="all">All scarcity levels</option><option value="single">Single-copy only</option><option value="early">Early / dated candidates</option><option value="verified">Verified data only</option></select></div></div>
+<div id="nftCards" class="cards"><div class="empty" style="grid-column:1/-1">No items loaded yet. Run a scan, or use “Load illustrative examples” to preview the interface.</div></div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="secondary" id="examples">Load illustrative examples</button><button class="secondary" id="export">Export visible results (CSV)</button></div>
+</section>
+<section class="card span6">
+<h2>🧭 Digital Antiquity Index</h2>
+<p>Separate historical/archival significance from market price. Every score should be backed by evidence.</p>
+<table><thead><tr><th>Factor</th><th>What the app looks for</th></tr></thead><tbody>
+<tr><td>Temporal rarity</td><td>How early the first mint occurred relative to contract activity.</td></tr><tr><td>Supply scarcity</td><td>Original mint quantity, not current holder count.</td></tr><tr><td>Provenance</td><td>Mint transaction, creator, and ownership history.</td></tr><tr><td>Preservation</td><td>Metadata and artwork still accessible.</td></tr><tr><td>Collector interest</td><td>Listings, completed sales, bids, and independent attention.</td></tr></tbody></table>
+<div class="notice" style="margin-top:13px">Important: a contract's deployment date is not the same as a token's mint date. A token ID's current balance is not necessarily its original supply.</div>
+</section>
+<section class="card span6">
+<h2>🔨 Auction room</h2>
+<p class="small">Select an archive item to create a local auction card. This prototype's bids are stored in this browser only and are not on-chain offers.</p>
+<div class="auctiongrid">
+<div><label for="auctionItem">Selected collectible</label><select id="auctionItem"><option value="">Load or select an item first</option></select><div class="metrics"><div class="metric"><span>Current high bid</span><b id="highBid">—</b></div><div class="metric"><span>Number of bids</span><b id="bidCount">0</b></div></div><label for="reserve">Reserve / asking price (POL)</label><input id="reserve" type="number" min="0" step="0.001" value="1"><label for="duration" style="margin-top:10px">Auction duration</label><select id="duration"><option value="1">1 day</option><option value="3" selected>3 days</option><option value="7">7 days</option></select><button id="createAuction" class="secondary">Create local auction</button></div>
+<div><label for="bidder">Bidder display name</label><input id="bidder" maxlength="32" placeholder="Collector name"><label for="bidAmount" style="margin-top:10px">Your bid (POL)</label><input id="bidAmount" type="number" min="0" step="0.001" placeholder="e.g. 1.25"><button id="placeBid" style="margin-top:10px">Place demo bid</button><div id="auctionStatus" class="status">No auction selected.</div></div>
+</div>
+<div style="margin-top:14px"><h3>Bid history</h3><div id="bidHistory" class="small">No bids yet.</div></div>
+</section>
+<section class="card span12">
+<h2>🧾 Evidence & valuation policy</h2>
+<div class="grid">
+<div class="span4"><h3>Verified facts</h3><p class="small">On-chain timestamps, token IDs, mint quantities, transaction hashes, creator wallet where determinable.</p></div>
+<div class="span4"><h3>Research estimates</h3><p class="small">Antiquity score, historical importance, metadata quality, and scarcity category. These are assessments, not chain facts.</p></div>
+<div class="span4"><h3>Market value</h3><p class="small">Use actual completed sales where possible. Floor prices and seller asks are not proof of fair value; thin markets can have no real liquidity.</p></div>
+</div>
+</section>
+</div>
+<div class="footer">Prototype v1 · Public read-only discovery + browser-local auction simulation. No wallet connection, custody, payments, smart-contract auction, or real marketplace listing is enabled. Never treat rarity scores or estimated values as investment advice.</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let items=[], selectedId='', auctions=JSON.parse(localStorage.getItem('da_auctions_v1')||'{}'), liveSource=false;
+const sample=[
+{id:'demo-1',name:'Early Polygon Relic #1',tokenId:'ILLUSTRATIVE-001',date:'2021-07-01',supply:1,creator:'Example wallet (not verified)',score:91,rarity:'Single-copy candidate',value:'Not established',verified:false,desc:'Illustrative only — not a real token result.',emoji:'🏺'},
+{id:'demo-2',name:'Genesis Pixel Fragment',tokenId:'ILLUSTRATIVE-002',date:'2021-08-19',supply:1,creator:'Example wallet (not verified)',score:83,rarity:'Single-copy candidate',value:'Not established',verified:false,desc:'Illustrative only — not a real token result.',emoji:'◈'},
+{id:'demo-3',name:'Old Web Relic Edition',tokenId:'ILLUSTRATIVE-003',date:'2022-03-10',supply:25,creator:'Example wallet (not verified)',score:62,rarity:'Limited edition',value:'Not established',verified:false,desc:'Illustrative only — not a real token result.',emoji:'✧'}
+];
+function scoreItem(x){let score=10;if(x.date){const y=new Date(x.date).getFullYear();score+=Math.max(0,35-Math.max(0,y-2020)*5)}if(Number(x.supply)===1)score+=30;else if(Number(x.supply)>1&&Number(x.supply)<=10)score+=20;else if(Number(x.supply)<=100)score+=10;if(x.verified)score+=15;return Math.max(0,Math.min(100,score))}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function render(){
+ const q=$('search').value.toLowerCase(), f=$('rarityFilter').value, sort=$('sort').value;
+ let list=items.filter(x=>(`${x.name} ${x.tokenId} ${x.creator}`.toLowerCase().includes(q))&&(f==='all'||(f==='single'&&Number(x.supply)===1)||(f==='early'&&x.date)||(f==='verified'&&x.verified)));
+ list.sort((a,b)=>sort==='date'?(a.date||'9999').localeCompare(b.date||'9999'):sort==='supply'?(Number(a.supply||1e99)-Number(b.supply||1e99)):sort==='value'?0:(b.score||0)-(a.score||0));
+ $('count').textContent=items.length;$('verified').textContent=items.filter(x=>x.verified&&x.date).length;$('single').textContent=items.filter(x=>Number(x.supply)===1).length;
+ $('nftCards').innerHTML=list.length?list.map(x=>`<article class="nft"><div class="art">${esc(x.emoji||'◇')}</div><div class="nftbody"><span class="tag">${esc(x.rarity||'Unclassified')}</span><div class="row"><h3>${esc(x.name||('Token '+x.tokenId))}</h3><span class="score">${x.score??'—'}</span></div><p class="small">Token ID: ${esc(x.tokenId)}</p><div class="meter"><i style="width:${Math.max(0,Math.min(100,x.score||0))}%"></i></div><div class="metrics"><div class="metric"><span>Mint date</span><b>${esc(x.date||'Unknown')}</b></div><div class="metric"><span>Original supply</span><b>${esc(x.supply??'Unknown')}</b></div><div class="metric"><span>Value</span><b>${esc(x.value||'Not established')}</b></div><div class="metric"><span>Evidence</span><b>${x.verified?'Partially verified':'Unverified'}</b></div></div><p class="small">${esc(x.desc||'Research candidate. Verify on-chain data independently.')}</p><button class="secondary" onclick="selectAuction('${esc(x.id)}')">Open in auction room</button></div></article>`).join(''):'<div class="empty" style="grid-column:1/-1">No items match these filters.</div>';
+ const old=$('auctionItem').value;$('auctionItem').innerHTML=items.map(x=>`<option value="${esc(x.id)}">${esc(x.name)} · #${esc(x.tokenId)}</option>`).join('')||'<option value="">No items</option>';
+ if(items.some(x=>x.id===old))$('auctionItem').value=old;else if(items.length)$('auctionItem').value=items[0].id;
+ updateAuction();
+}
+window.selectAuction=id=>{$('auctionItem').value=id;updateAuction();$('auctionItem').scrollIntoView({behavior:'smooth',block:'center'})};
+function updateAuction(){selectedId=$('auctionItem').value;const a=auctions[selectedId];$('highBid').textContent=a&&a.bids.length?Math.max(...a.bids.map(b=>b.amount)).toFixed(3)+' POL':(a?'No bids':'—');$('bidCount').textContent=a?a.bids.length:0;$('bidHistory').innerHTML=a&&a.bids.length?[...a.bids].sort((x,y)=>y.amount-x.amount).map(b=>`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>${esc(b.name)} <span class="muted">· ${esc(b.time)}</span></span><b>${b.amount.toFixed(3)} POL</b></div>`).join(''):'No bids yet.';if(a){$('reserve').value=a.reserve;$('auctionStatus').textContent=`Local auction ${a.end> Date.now()?'open':'ended'} · ends ${new Date(a.end).toLocaleString()}.`; }else $('auctionStatus').textContent='No local auction created for this item.'}
+function persist(){localStorage.setItem('da_auctions_v1',JSON.stringify(auctions))}
+$('createAuction').onclick=()=>{const id=$('auctionItem').value;if(!id)return alert('Load or select an item first.');const days=Number($('duration').value);auctions[id]={reserve:Math.max(0,Number($('reserve').value)||0),end:Date.now()+days*86400000,bids:auctions[id]?.bids||[]};persist();updateAuction();$('auctionStatus').textContent='Local demo auction created. This is not an on-chain auction.'};
+$('placeBid').onclick=()=>{const id=$('auctionItem').value,a=auctions[id],name=$('bidder').value.trim()||'Anonymous collector',amount=Number($('bidAmount').value);if(!a)return $('auctionStatus').textContent='Create a local auction first.';if(a.end<Date.now())return $('auctionStatus').textContent='This local auction has ended.';if(!Number.isFinite(amount)||amount<=0)return $('auctionStatus').textContent='Enter a valid bid amount.';const high=a.bids.length?Math.max(...a.bids.map(b=>b.amount)):0;if(amount<=high)return $('auctionStatus').textContent=`Bid must exceed current high bid (${high} POL).`;a.bids.push({name,amount,time:new Date().toLocaleString()});persist();$('bidAmount').value='';updateAuction();$('auctionStatus').textContent='Demo bid recorded in this browser only — no payment or blockchain transaction occurred.'};
+$('auctionItem').onchange=updateAuction;
+['search','rarityFilter','sort'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',render));
+$('examples').onclick=()=>{items=sample.map(x=>({...x}));liveSource=false;$('source').textContent='Examples';$('scanStatus').className='status';$('scanStatus').textContent='Illustrative sample cards loaded. These are fictional examples, not real NFTs or live valuation data.';render()};
+$('export').onclick=()=>{const rows=[['name','token_id','mint_date','supply','score','value','verified'],...items.map(x=>[x.name,x.tokenId,x.date,x.supply,x.score,x.value,x.verified])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='digital-antiquities-archive.csv';a.click();URL.revokeObjectURL(a.href)};
+$('scan').onclick=scanContract;
+async function scanContract(){
+ const addr=$('contract').value.trim();if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){$('scanStatus').className='status error';$('scanStatus').textContent='Enter a valid 0x contract address.';return}
+ $('scan').disabled=true;$('scanStatus').className='status';$('scanStatus').textContent='Querying public Polygon Blockscout token-instance endpoint…';$('source').textContent='Connecting';
+ try{
+   const url=`https://polygon.blockscout.com/api/v2/tokens/${addr}/instances?items_count=50`;
+   const res=await fetch(url,{headers:{accept:'application/json'}});if(!res.ok)throw new Error('Public explorer returned HTTP '+res.status);
+   const data=await res.json();const arr=data.items||data.instances||[];if(!arr.length)throw new Error('No token instances returned. This endpoint may not expose this ERC-1155 contract or may require a different explorer query.');
+   items=arr.map((t,i)=>{const id=String(t.id??t.token_id??t.tokenId??('unknown-'+i));const meta=t.metadata||{};const supply=t.total_supply??t.totalSupply??t.supply??null;const d=t.mint&&t.mint.timestamp?t.mint.timestamp:null;const date=d?String(d).slice(0,10):null;let x={id:addr.toLowerCase()+'-'+id,tokenId:id,name:meta.name||t.name||('Polygon token #'+id),date,supply:supply===null?'Unknown':Number(supply),creator:t.creator?.hash||t.mint?.address?.hash||'Unknown',score:0,rarity:supply===1?'Single-copy candidate':supply&&supply<=10?'Very limited':'Supply unverified',value:'Not established',verified:!!(date&&supply!==null),desc:'Explorer instance data; verify mint event, original quantity, creator, and metadata before classifying.'};x.score=scoreItem(x);x.emoji='◇';return x});
+   $('source').textContent='Blockscout';$('scanStatus').className='status good';$('scanStatus').textContent=`Loaded ${items.length} token instances from the public explorer. Mint date/supply fields may be absent; blank data is not proof of rarity.`;render();
+ }catch(e){$('source').textContent='Unavailable';$('scanStatus').className='status error';$('scanStatus').textContent='Live scan did not return usable token instances: '+e.message+' Try again later or load illustrative examples. For comprehensive discovery, a backend/indexer and marketplace API key may be needed.'}
+ finally{$('scan').disabled=false}
+}
+render();
+</script>
+</body>
+</html>
