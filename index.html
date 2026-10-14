@@ -107,9 +107,17 @@ async function scanContract(){
  const addr=$('contract').value.trim();if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){$('scanStatus').className='status error';$('scanStatus').textContent='Enter a valid 0x contract address.';return}
  $('scan').disabled=true;$('scanStatus').className='status';$('scanStatus').textContent='Querying public Polygon Blockscout token-instance endpoint…';$('source').textContent='Connecting';
  try{
-   const url=`https://polygon.blockscout.com/api/v2/tokens/${addr}/instances?items_count=50`;
-   const res=await fetch(url,{headers:{accept:'application/json'}});if(!res.ok)throw new Error('Public explorer returned HTTP '+res.status);
-   const data=await res.json();const arr=data.items||data.instances||[];if(!arr.length)throw new Error('No token instances returned. This endpoint may not expose this ERC-1155 contract or may require a different explorer query.');
+   // Blockscout's /instances endpoint does not document items_count; that
+   // unsupported parameter can cause HTTP 422 on some deployments.
+   const url=`https://polygon.blockscout.com/api/v2/tokens/${addr}/instances`;
+   const res=await fetch(url,{headers:{accept:'application/json'}});
+   if(!res.ok){
+     let detail='';
+     try{const body=await res.json();detail=body.message||body.detail||body.error||'';}catch(_){}
+     throw new Error('Polygon Blockscout returned HTTP '+res.status+(detail?': '+String(detail).slice(0,180):'')+'. The public endpoint may reject this contract or be temporarily unavailable.');
+   }
+   const data=await res.json();const arr=Array.isArray(data)?data:(data.items||data.instances||[]);
+   if(!arr.length)throw new Error('Explorer returned no token instances for this contract. This does not prove that the contract has no NFTs; use a transfer-history indexer/backend for full ERC-1155 discovery.');
    items=arr.map((t,i)=>{const id=String(t.id??t.token_id??t.tokenId??('unknown-'+i));const meta=t.metadata||{};const supply=t.total_supply??t.totalSupply??t.supply??null;const d=t.mint&&t.mint.timestamp?t.mint.timestamp:null;const date=d?String(d).slice(0,10):null;let x={id:addr.toLowerCase()+'-'+id,tokenId:id,name:meta.name||t.name||('Polygon token #'+id),date,supply:supply===null?'Unknown':Number(supply),creator:t.creator?.hash||t.mint?.address?.hash||'Unknown',score:0,rarity:supply===1?'Single-copy candidate':supply&&supply<=10?'Very limited':'Supply unverified',value:'Not established',verified:!!(date&&supply!==null),desc:'Explorer instance data; verify mint event, original quantity, creator, and metadata before classifying.'};x.score=scoreItem(x);x.emoji='◇';return x});
    $('source').textContent='Blockscout';$('scanStatus').className='status good';$('scanStatus').textContent=`Loaded ${items.length} token instances from the public explorer. Mint date/supply fields may be absent; blank data is not proof of rarity.`;render();
  }catch(e){$('source').textContent='Unavailable';$('scanStatus').className='status error';$('scanStatus').textContent='Live scan did not return usable token instances: '+e.message+' Try again later or load illustrative examples. For comprehensive discovery, a backend/indexer and marketplace API key may be needed.'}
