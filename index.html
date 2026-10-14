@@ -26,12 +26,12 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;b
 </style>
 </head>
 <body>
-<header><div class="hero"><div><div class="brand">Digital Antiquities · Early Mint Archive</div><h1>History you can verify.<br><span style="color:var(--gold)">Scarcity you can investigate.</span></h1><p>An OpenSea-only research explorer targeting OpenSea “Untitled” collections with fewer than 100 unique items, like Untitled Collection #209409848 (51 unique items in your example). Focus exclusively on OpenSea collection creation dates and collections with 1–99 unique items.</p></div><div class="pill">● Archive workspace</div></div></header>
+<header><div class="hero"><div><div class="brand">Digital Antiquities · Early Mint Archive</div><h1>History you can verify.<br><span style="color:var(--gold)">Scarcity you can investigate.</span></h1><p>An OpenSea-only research explorer for “Untitled” collections associated with the specified Polygon contract, with 1–99 unique items. Results are discovered from the contract scan; example links are not hardcoded.</p></div><div class="pill">● Archive workspace</div></div></header>
 <main>
 <div class="grid">
 <section class="card span12">
 <h2>⌕ Discover collectibles</h2>
-<p class="small">Searches OpenSea only under the exact Polygon ERC-1155 contract below, then keeps collections whose name or slug contains “untitled” and whose OpenSea unique_item_count is 1–99. It does not substitute total_supply for unique_item_count, because your target is the collection page’s “UNIQUE” count; if that exact field is unavailable, the collection is excluded and its size is treated as unknown. The scanner checks collection metadata only; it does not request NFT event or mint histories, reducing unnecessary API requests. Temporary API keys expire after 7 days; browser CORS and API limits may restrict results. For regular use, keep API keys on a backend.</p>
+<p class="small">Searches OpenSea only under the exact Polygon ERC-1155 contract below, then keeps collections whose name or slug contains “untitled” and whose OpenSea unique_item_count is 1–99. It does not substitute total_supply for unique_item_count, because your target is the collection page’s “UNIQUE” count; if that exact field is unavailable, the collection is excluded and its size is treated as unknown. The scanner discovers collection slugs only from NFTs returned by the contract endpoint; it does not hardcode or directly inject any example collection. It does not request NFT event or mint histories, reducing unnecessary API requests. Temporary API keys expire after 7 days; browser CORS and API limits may restrict results. For regular use, keep API keys on a backend.</p>
 <div class="controls">
 <div><label for="contract">Polygon token contract</label><input id="contract" spellcheck="false" value="0x2953399124F0cBB46d2CbACD8A89cF0599974963"></div>
 <div>
@@ -50,7 +50,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;b
 </div><div id="scanStatus" class="status">Ready. Enter your OpenSea API key and scan this contract through OpenSea only.</div>
 </section>
 <section class="card span12">
-<div class="row" style="margin-bottom:12px;flex-wrap:wrap"><div><h2>🏺 Candidate archive</h2><p class="small">Target: collection name/slug contains “untitled” and OpenSea unique-item count is 1–99 (matching the “51 UNIQUE” label in your screenshot). All creation dates are eligible. Ranking uses only OpenSea collection creation date (such as JAN 2022) and the collection’s UNIQUE item count. Older collections and lower unique counts rank higher. NFT mint dates are not requested or displayed.</p></div><div class="toolbar"><input id="search" placeholder="Search name, token ID, creator…"><select id="rarityFilter"><option value="all">All scarcity levels</option><option value="single">Single-copy only</option><option value="early">Early / dated candidates</option><option value="verified">Verified data only</option></select></div></div>
+<div class="row" style="margin-bottom:12px;flex-wrap:wrap"><div><h2>🏺 Candidate archive</h2><p class="small">Target: exact Polygon contract plus “Untitled” collection name/slug and OpenSea unique-item count is 1–99. Collections are shown only when discovered naturally in the contract NFT scan and confirmed by OpenSea collection metadata. All creation dates are eligible. Ranking uses only OpenSea collection creation date (such as JAN 2022) and the collection’s UNIQUE item count. Older collections and lower unique counts rank higher. NFT mint dates are not requested or displayed.</p></div><div class="toolbar"><input id="search" placeholder="Search name, token ID, creator…"><select id="rarityFilter"><option value="all">All scarcity levels</option><option value="single">Single-copy only</option><option value="early">Early / dated candidates</option><option value="verified">Verified data only</option></select></div></div>
 <div id="nftCards" class="cards"><div class="empty" style="grid-column:1/-1">No matching items loaded yet. Enter your OpenSea API key and run the targeted OpenSea-only scan. Examples are fictional.</div></div>
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="secondary" id="examples">Load illustrative examples</button><button class="secondary" id="export">Export visible results (CSV)</button></div>
 </section>
@@ -184,7 +184,7 @@ async function scanContract(){
  const headers={accept:'application/json','x-api-key':apiKey};
  const base=`https://api.opensea.io/api/v2/chain/polygon/contract/${encodeURIComponent(addr)}/nfts`;
  const seen=new Set(); let cursor=null, pages=0, collectionChecks=0;
- const maxPages=20; // Safety cap: up to 1,000 NFT records per scan.
+ const maxPages=20; // Safety cap: up to 1,000 contract NFT records per scan.
  const maxCollectionChecks=100; // Cap metadata requests for safety.
  const rawItems=[];
  try{
@@ -249,6 +249,7 @@ async function scanContract(){
        await new Promise(r=>setTimeout(r,100));
      }
    }
+
 
    const targeted=rawItems.filter(x=>{
      const info=collectionInfo.get(x.collectionSlug);
