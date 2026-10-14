@@ -31,10 +31,17 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;b
 <div class="grid">
 <section class="card span12">
 <h2>⌕ Discover collectibles</h2>
-<p class="small">Searches OpenSea only for NFTs under the exact Polygon ERC-1155 contract below. An OpenSea API key is required. The scanner paginates through the contract's available NFT records and checks OpenSea event history for a possible 2021 mint. Unknown dates remain unverified; API coverage and rate limits may restrict results. For regular use, keep API keys on a backend.</p>
+<p class="small">Searches OpenSea only for NFTs under the exact Polygon ERC-1155 contract below. An OpenSea API key is required; the Get free key button attempts to request a temporary key directly from OpenSea (browser CORS may block it). Temporary keys expire after 7 days. The scanner paginates through the contract's available NFT records and checks OpenSea event history for a possible 2021 mint. Unknown dates remain unverified; API coverage and rate limits may restrict results. For regular use, keep API keys on a backend.</p>
 <div class="controls">
 <div><label for="contract">Polygon token contract</label><input id="contract" spellcheck="false" value="0x2953399124F0cBB46d2CbACD8A89cF0599974963"></div>
-<div><label for="openseaKey">OpenSea API key (required)</label><input id="openseaKey" type="password" autocomplete="off" placeholder="Paste OpenSea API key"></div>
+<div>
+<label for="openseaKey">OpenSea API key (required)</label>
+<div class="keyrow" style="display:flex;gap:8px;align-items:stretch">
+  <input id="openseaKey" type="password" autocomplete="off" placeholder="Get a temporary key or paste one" style="flex:1;min-width:0">
+  <button id="getInstantKey" type="button" class="secondary" style="white-space:nowrap">Get free key</button>
+</div>
+<p id="keyStatus" class="small" aria-live="polite">Temporary keys expire after 7 days. Key requests depend on OpenSea and browser CORS support.</p>
+</div>
 <div><label for="sort">Sort archive by</label><select id="sort"><option value="score">Antiquity score</option><option value="date">Earliest date (when known)</option><option value="supply">Lowest supply</option><option value="value">Estimated value (manual)</option></select></div>
 <button id="scan">Scan contract</button>
 </div>
@@ -110,6 +117,35 @@ $('auctionItem').onchange=updateAuction;
 ['search','rarityFilter','sort','year2021Only'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',render));
 $('examples').onclick=()=>{items=sample.map(x=>({...x}));liveSource=false;$('source').textContent='Examples';$('scanStatus').className='status';$('scanStatus').textContent='Illustrative sample cards loaded. These are fictional examples, not real NFTs or live valuation data.';render()};
 $('export').onclick=()=>{const rows=[['name','token_id','mint_date','supply','score','value','verified'],...items.map(x=>[x.name,x.tokenId,x.date,x.supply,x.score,x.value,x.verified])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='digital-antiquities-archive.csv';a.click();URL.revokeObjectURL(a.href)};
+
+$('getInstantKey').onclick=async()=>{
+  const btn=$('getInstantKey'), keyField=$('openseaKey'), keyStatus=$('keyStatus');
+  btn.disabled=true;
+  keyStatus.textContent='Requesting a free temporary key from OpenSea…';
+  try{
+    const res=await fetch('https://api.opensea.io/api/v2/auth/keys',{
+      method:'POST',
+      headers:{accept:'application/json'}
+    });
+    let data={};
+    try{data=await res.json()}catch{}
+    if(!res.ok){
+      const detail=Array.isArray(data.errors)?data.errors.join('; '):('HTTP '+res.status);
+      throw new Error(detail);
+    }
+    if(!data.api_key) throw new Error('OpenSea response did not contain api_key.');
+    keyField.value=data.api_key;
+    keyField.type='password';
+    const expiry=data.expires_at?new Date(data.expires_at).toLocaleString():'in 7 days';
+    const limits=data.rate_limits?` Read ${data.rate_limits.read||'—'} · Write ${data.rate_limits.write||'—'} · Fulfillment ${data.rate_limits.fulfillment||'—'}.`:'';
+    keyStatus.textContent=`Temporary key received. Expires: ${expiry}.${limits} The key is held only in this page field; it is not saved by this HTML.`;
+  }catch(e){
+    keyStatus.textContent=`Could not request a key automatically: ${e.message||e}. Your browser may block the request with CORS, or OpenSea may be temporarily unavailable/rate-limiting key creation. Use OpenSea's instant-key documentation to request it manually, then paste it here.`;
+  }finally{
+    btn.disabled=false;
+  }
+};
+
 $('scan').onclick=scanContract;
 async function scanContract(){
  const addr=$('contract').value.trim(), apiKey=$('openseaKey').value.trim();
