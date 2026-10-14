@@ -42,15 +42,15 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;b
 </div>
 <p id="keyStatus" class="small" aria-live="polite">Temporary keys expire after 7 days. Key requests depend on OpenSea and browser CORS support.</p>
 </div>
-<div><label for="sort">Sort archive by</label><select id="sort"><option value="score">Research priority (age + unique count)</option><option value="date">Earliest date (when known)</option><option value="supply">Lowest unique-item count</option><option value="value">Estimated value (manual)</option></select></div>
+<div><label for="sort">Rank by collection age + uniqueness</label><select id="sort"><option value="score">Research priority (age + unique count)</option><option value="date">Earliest date (when known)</option><option value="supply">Lowest unique-item count</option><option value="value">Estimated value (manual)</option></select></div>
 <button id="scan">Scan contract</button>
 </div>
 <div class="stats">
-<div class="stat"><span>Matching NFTs</span><strong id="count">0</strong></div><div class="stat"><span>Possible mint dates</span><strong id="verified">0</strong></div><div class="stat"><span>Single-copy candidates</span><strong id="single">0</strong></div><div class="stat"><span>Data source</span><strong style="font-size:15px" id="source">Not scanned</strong></div>
+<div class="stat"><span>Matching NFTs</span><strong id="count">0</strong></div><div class="stat"><span>Collection dates found</span><strong id="verified">0</strong></div><div class="stat"><span>Single-copy candidates</span><strong id="single">0</strong></div><div class="stat"><span>Data source</span><strong style="font-size:15px" id="source">Not scanned</strong></div>
 </div><div id="scanStatus" class="status">Ready. Enter your OpenSea API key and scan this contract through OpenSea only.</div>
 </section>
 <section class="card span12">
-<div class="row" style="margin-bottom:12px;flex-wrap:wrap"><div><h2>🏺 Candidate archive</h2><p class="small">Target: collection name/slug contains “untitled” and OpenSea unique-item count is 1–99 (matching the “51 UNIQUE” label in your screenshot). All available dates are eligible. Older possible mint dates and lower OpenSea unique-item counts receive higher research-priority scores; these scores are not verified market valuations. Dates found in OpenSea events are possible mint dates, not independently verified chain facts.</p></div><div class="toolbar"><input id="search" placeholder="Search name, token ID, creator…"><select id="rarityFilter"><option value="all">All scarcity levels</option><option value="single">Single-copy only</option><option value="early">Early / dated candidates</option><option value="verified">Verified data only</option></select></div></div>
+<div class="row" style="margin-bottom:12px;flex-wrap:wrap"><div><h2>🏺 Candidate archive</h2><p class="small">Target: collection name/slug contains “untitled” and OpenSea unique-item count is 1–99 (matching the “51 UNIQUE” label in your screenshot). All dates are eligible. Ranking uses OpenSea collection creation date (the date shown on collection pages, such as JAN 2022) plus the collection’s UNIQUE item count. Older collections and lower unique counts rank higher. NFT mint-event dates are displayed separately and are not substituted for collection creation dates.</p></div><div class="toolbar"><input id="search" placeholder="Search name, token ID, creator…"><select id="rarityFilter"><option value="all">All scarcity levels</option><option value="single">Single-copy only</option><option value="early">Early / dated candidates</option><option value="verified">Verified data only</option></select></div></div>
 <div id="nftCards" class="cards"><div class="empty" style="grid-column:1/-1">No matching items loaded yet. Enter your OpenSea API key and run the targeted OpenSea-only scan. Examples are fictional.</div></div>
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="secondary" id="examples">Load illustrative examples</button><button class="secondary" id="export">Export visible results (CSV)</button></div>
 </section>
@@ -79,7 +79,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;b
 </div>
 </section>
 </div>
-<div class="footer">Prototype v1 · Public read-only discovery + browser-local auction simulation. No wallet connection, custody, payments, smart-contract auction, or real marketplace listing is enabled. Never treat rarity scores or estimated values as investment advice.</div>
+<div class="footer">Prototype v1 · Public read-only discovery + browser-local auction simulation. No wallet connection, custody, payments, smart-contract auction, or real marketplace listing is enabled. Collection creation date is sourced from OpenSea metadata; NFT mint date is separate. Research scores are not market valuations or investment advice.</div>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -91,29 +91,26 @@ const sample=[
 ];
 function scoreItem(x){
  let score=0;
- // Date contributes more for older years. A date from OpenSea events is only a possible date.
- if(x.date){
-   const y=new Date(x.date).getFullYear();
-   const agePoints={2020:45,2021:40,2022:35,2023:25,2024:18,2025:10,2026:5};
-   score+=agePoints[y]??(y<2020?50:0);
- } else {
-   score+=0; // Unknown dates get no age points, not a penalty disguised as evidence.
+ const rawDate=x.collectionCreatedDate||'';
+ if(rawDate){
+   const y=new Date(rawDate).getFullYear();
+   const agePoints={2017:50,2018:48,2019:46,2020:44,2021:42,2022:38,2023:30,2024:20,2025:10,2026:4};
+   score+=agePoints[y]??(y<2017?52:y>2026?0:15);
  }
- // Match the collection page's UNIQUE count, not token supply or holder count.
  const n=Number(x.collectionSize);
  if(Number.isFinite(n)&&n>0){
-   if(n<=10)score+=50;
+   if(n<=10)score+=48;
    else if(n<=25)score+=42;
-   else if(n<=50)score+=34;
+   else if(n<=50)score+=35;
    else if(n<=75)score+=25;
    else if(n<100)score+=15;
  }
  return Math.max(0,Math.min(100,score));
 }
 function researchCategory(x){
- const n=Number(x.collectionSize), year=x.date?new Date(x.date).getFullYear():null;
- if(!Number.isFinite(n)||n<=0) return 'Unranked — missing unique count';
- if(!x.date) return n<=25?'Scarce — date unknown':'Date unknown';
+ const n=Number(x.collectionSize), d=x.collectionCreatedDate, year=d?new Date(d).getFullYear():null;
+ if(!Number.isFinite(n)||n<=0) return 'Unranked — unique count unavailable';
+ if(!d) return n<=25?'Scarce — creation date unknown':'Creation date unknown';
  if(n<=25&&year<=2022) return 'Exceptional research priority';
  if(n<=50&&year<=2023) return 'High research priority';
  if(n<100&&year<=2024) return 'Promising research priority';
@@ -126,9 +123,9 @@ function render(){
     return (`${x.name} ${x.tokenId} ${x.creator} ${x.collectionName||""} ${x.collectionSlug||""} ${researchCategory(x)}`.toLowerCase().includes(q))
       && (f==='all'||(f==='single'&&Number(x.supply)===1)||(f==='early'&&x.date)||(f==='verified'&&x.verified));
   });
- list.sort((a,b)=>sort==='date'?(a.date||'9999').localeCompare(b.date||'9999'):sort==='supply'?(Number(a.collectionSize||1e99)-Number(b.collectionSize||1e99)):sort==='value'?(b.score||0)-(a.score||0):(b.score||0)-(a.score||0));
- $('count').textContent=items.length;$('verified').textContent=items.filter(x=>x.date).length;$('single').textContent=items.filter(x=>Number(x.supply)===1).length;
- $('nftCards').innerHTML=list.length?list.map(x=>`<article class="nft"><div class="art">${x.imageUrl?`<img src="${esc(x.imageUrl)}" alt="" loading="lazy" style="max-width:100%;max-height:100%;object-fit:contain">`:esc(x.emoji||'◇')}</div><div class="nftbody"><span class="tag">${esc(researchCategory(x))}</span><div class="row"><h3>${esc(x.name||('Token '+x.tokenId))}</h3><span class="score">${x.score??'—'}</span></div><p class="small">Token ID: ${esc(x.tokenId)}</p><p class="small">Collection: ${x.collectionSlug?`<a href="https://opensea.io/collection/${encodeURIComponent(x.collectionSlug)}" target="_blank" rel="noopener" style="color:var(--gold)">${esc(x.collectionName||x.collectionSlug)}</a>`:esc(x.collectionName||"Unknown")} · Unique items: ${x.collectionSize!==null&&x.collectionSize!==undefined?esc(x.collectionSize):"Unknown"}</p><div class="meter"><i style="width:${Math.max(0,Math.min(100,x.score||0))}%"></i></div><div class="metrics"><div class="metric"><span>Mint date</span><b>${esc(x.date||'Unknown')}</b></div><div class="metric"><span>Original supply</span><b>${esc(x.supply===null||x.supply===undefined||x.supply===''||x.supply==='Unknown'?'Supply unverified':x.supply)}</b></div><div class="metric"><span>Value</span><b>${esc(x.value||'Not established')}</b></div><div class="metric"><span>Evidence</span><b>${x.verified?'Partially verified':'Unverified'}</b></div></div><p class="small">${esc(x.desc||'Research candidate. Verify on-chain data independently.')}</p><button class="secondary" onclick="openSeaLookup('${esc(x.tokenId)}')">View on OpenSea</button><button class="secondary" onclick="selectAuction('${esc(x.id)}')">Open in auction room</button></div></article>`).join(''):'<div class="empty" style="grid-column:1/-1">No items match the current filters. Turn off “Only mint dates in 2021” to inspect matching Untitled collections whose mint dates are unknown or outside 2021.</div>';
+ list.sort((a,b)=>sort==='date'?(a.collectionCreatedDate||'9999').localeCompare(b.collectionCreatedDate||'9999'):sort==='supply'?(Number(a.collectionSize||1e99)-Number(b.collectionSize||1e99)):sort==='value'?(b.score||0)-(a.score||0):(b.score||0)-(a.score||0));
+ $('count').textContent=items.length;$('verified').textContent=items.filter(x=>x.collectionCreatedDate).length;$('single').textContent=items.filter(x=>Number(x.supply)===1).length;
+ $('nftCards').innerHTML=list.length?list.map(x=>`<article class="nft"><div class="art">${x.imageUrl?`<img src="${esc(x.imageUrl)}" alt="" loading="lazy" style="max-width:100%;max-height:100%;object-fit:contain">`:esc(x.emoji||'◇')}</div><div class="nftbody"><span class="tag">${esc(researchCategory(x))}</span><div class="row"><h3>${esc(x.name||('Token '+x.tokenId))}</h3><span class="score">${x.score??'—'}</span></div><p class="small">Token ID: ${esc(x.tokenId)}</p><p class="small">Collection: ${x.collectionSlug?`<a href="https://opensea.io/collection/${encodeURIComponent(x.collectionSlug)}" target="_blank" rel="noopener" style="color:var(--gold)">${esc(x.collectionName||x.collectionSlug)}</a>`:esc(x.collectionName||"Unknown")} · Unique items: ${x.collectionSize!==null&&x.collectionSize!==undefined?esc(x.collectionSize):"Unknown"}</p><div class="meter"><i style="width:${Math.max(0,Math.min(100,x.score||0))}%"></i></div><div class="metrics"><div class="metric"><span>Collection created</span><b>${esc(x.collectionCreatedDate||'Unknown')}</b></div><div class="metric"><span>Possible NFT mint</span><b>${esc(x.date||'Unknown')}</b></div><div class="metric"><span>Original supply</span><b>${esc(x.supply===null||x.supply===undefined||x.supply===''||x.supply==='Unknown'?'Supply unverified':x.supply)}</b></div><div class="metric"><span>Value</span><b>${esc(x.value||'Not established')}</b></div><div class="metric"><span>Evidence</span><b>${x.verified?'Partially verified':'Unverified'}</b></div></div><p class="small">${esc(x.desc||'Research candidate. Verify on-chain data independently.')}</p><button class="secondary" onclick="openSeaLookup('${esc(x.tokenId)}')">View on OpenSea</button><button class="secondary" onclick="selectAuction('${esc(x.id)}')">Open in auction room</button></div></article>`).join(''):'<div class="empty" style="grid-column:1/-1">No items match the current filters. No results match the current filters. Try clearing the search or changing the filter.</div>';
  const old=$('auctionItem').value;$('auctionItem').innerHTML=items.map(x=>`<option value="${esc(x.id)}">${esc(x.name)} · #${esc(x.tokenId)}</option>`).join('')||'<option value="">No items</option>';
  if(items.some(x=>x.id===old))$('auctionItem').value=old;else if(items.length)$('auctionItem').value=items[0].id;
  updateAuction();
@@ -140,9 +137,9 @@ function persist(){localStorage.setItem('da_auctions_v1',JSON.stringify(auctions
 $('createAuction').onclick=()=>{const id=$('auctionItem').value;if(!id)return alert('Load or select an item first.');const days=Number($('duration').value);auctions[id]={reserve:Math.max(0,Number($('reserve').value)||0),end:Date.now()+days*86400000,bids:auctions[id]?.bids||[]};persist();updateAuction();$('auctionStatus').textContent='Local demo auction created. This is not an on-chain auction.'};
 $('placeBid').onclick=()=>{const id=$('auctionItem').value,a=auctions[id],name=$('bidder').value.trim()||'Anonymous collector',amount=Number($('bidAmount').value);if(!a)return $('auctionStatus').textContent='Create a local auction first.';if(a.end<Date.now())return $('auctionStatus').textContent='This local auction has ended.';if(!Number.isFinite(amount)||amount<=0)return $('auctionStatus').textContent='Enter a valid bid amount.';const high=a.bids.length?Math.max(...a.bids.map(b=>b.amount)):0;if(amount<=high)return $('auctionStatus').textContent=`Bid must exceed current high bid (${high} POL).`;a.bids.push({name,amount,time:new Date().toLocaleString()});persist();$('bidAmount').value='';updateAuction();$('auctionStatus').textContent='Demo bid recorded in this browser only — no payment or blockchain transaction occurred.'};
 $('auctionItem').onchange=updateAuction;
-['search','rarityFilter','sort','year2021Only'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',render));
+['search','rarityFilter','sort'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',render));
 $('examples').onclick=()=>{items=sample.map(x=>({...x}));liveSource=false;$('source').textContent='Examples';$('scanStatus').className='status';$('scanStatus').textContent='Illustrative sample cards loaded. These are fictional examples, not real NFTs or live valuation data.';render()};
-$('export').onclick=()=>{const rows=[['name','token_id','mint_date','supply','score','value','verified'],...items.map(x=>[x.name,x.tokenId,x.date,x.supply,x.score,x.value,x.verified])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='digital-antiquities-archive.csv';a.click();URL.revokeObjectURL(a.href)};
+$('export').onclick=()=>{const rows=[['name','token_id','collection_slug','collection_created_date','unique_item_count','possible_nft_mint_date','original_supply','research_score','research_category'],...items.map(x=>[x.name,x.tokenId,x.collectionSlug,x.collectionCreatedDate,x.collectionSize,x.date,x.supply,x.score,researchCategory(x)])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='digital-antiquities-archive.csv';a.click();URL.revokeObjectURL(a.href)};
 
 $('getInstantKey').onclick=async()=>{
   const btn=$('getInstantKey'), keyField=$('openseaKey'), keyStatus=$('keyStatus');
@@ -243,6 +240,7 @@ async function scanContract(){
            name:c.name||slug,
            slug:c.collection||slug,
            size,sizeSource,
+           createdDate:(c.created_date && !Number.isNaN(new Date(c.created_date).getTime())) ? new Date(c.created_date).toISOString().slice(0,10) : null,
            url:c.opensea_url||`https://opensea.io/collection/${encodeURIComponent(slug)}`
          });
        }
@@ -259,6 +257,7 @@ async function scanContract(){
      x.collectionName=info.name||x.collectionSlug;
      x.collectionSize=info.size;
      x.collectionSizeSource=info.sizeSource;
+     x.collectionCreatedDate=info.createdDate||null;
      // Include the example style: untitled names/slugs, and strictly fewer than 100 items.
      const untitled=/untitled/i.test(`${x.collectionName} ${x.collectionSlug}`);
      const knownSize=Number.isFinite(info.size)&&info.size>=1&&info.size<100;
@@ -309,7 +308,7 @@ async function scanContract(){
    liveSource=true;
    $('source').textContent='OpenSea API';
    $('scanStatus').className='status good';
-   $('scanStatus').textContent=`Targeted scan complete: loaded ${rawItems.length} NFT records from ${pages} page(s), checked ${collectionChecks} collection records, kept ${items.length} NFTs in “untitled” collections with OpenSea unique_item_count of 1–99, and checked ${eventChecks} mint-event histories (${dateVerified} possible mint dates). The scan is capped at ${maxPages} NFT pages and ${maxCollectionChecks} unique collection lookups.`;
+   $('scanStatus').textContent=`Targeted scan complete: loaded ${rawItems.length} NFT records from ${pages} page(s), checked ${collectionChecks} collection records, kept ${items.length} NFTs in “untitled” collections with OpenSea unique_item_count of 1–99, and checked ${eventChecks} NFT mint-event histories (${dateVerified} possible mint dates); collection creation dates come from OpenSea collection metadata. The scan is capped at ${maxPages} NFT pages and ${maxCollectionChecks} unique collection lookups.`;
    render();
  }catch(e){
    $('source').textContent='Unavailable';$('scanStatus').className='status error';
