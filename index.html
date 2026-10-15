@@ -43,16 +43,18 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;b
 <p id="keyStatus" class="small" aria-live="polite">Temporary keys expire after 7 days. Key requests depend on OpenSea and browser CORS support.</p>
 </div>
 <div><label for="sort">Rank by collection age + uniqueness</label><select id="sort"><option value="score">Research priority (age + unique count)</option><option value="date">Earliest date (when known)</option><option value="supply">Lowest unique-item count</option><option value="value">Estimated value (manual)</option></select></div>
+<div><label for="pageLimit">NFT page limit (50 records/page)</label><select id="pageLimit"><option value="20">20 pages · 1,000 records</option><option value="50">50 pages · 2,500 records</option><option value="100" selected>100 pages · 5,000 records</option><option value="200">200 pages · 10,000 records</option><option value="500">500 pages · 25,000 records</option></select></div>
+<div><label for="lookupLimit">Collection lookup limit</label><select id="lookupLimit"><option value="100">100 collections</option><option value="250">250 collections</option><option value="500" selected>500 collections</option><option value="1000">1,000 collections</option><option value="2500">2,500 collections</option></select></div>
 <button id="scan">Scan contract</button>
 </div>
 <div class="stats">
-<div class="stat"><span>Matching NFTs</span><strong id="count">0</strong></div><div class="stat"><span>Collection dates found</span><strong id="verified">0</strong></div><div class="stat"><span>Single-copy candidates</span><strong id="single">0</strong></div><div class="stat"><span>Data source</span><strong style="font-size:15px" id="source">Not scanned</strong></div>
+<div class="stat"><span>Matching collections</span><strong id="count">0</strong></div><div class="stat"><span>Collection dates found</span><strong id="verified">0</strong></div><div class="stat"><span>Collections with 1–10 unique</span><strong id="single">0</strong></div><div class="stat"><span>Data source</span><strong style="font-size:15px" id="source">Not scanned</strong></div>
 </div><div id="scanStatus" class="status">Ready. Enter your OpenSea API key and scan this contract through OpenSea only.</div>
 </section>
 <section class="card span12">
-<div class="row" style="margin-bottom:12px;flex-wrap:wrap"><div><h2>🏺 Candidate archive</h2><p class="small">Target: exact Polygon contract plus “Untitled” collection name/slug and OpenSea unique-item count is 1–99. Collections are shown only when discovered naturally in the contract NFT scan and confirmed by OpenSea collection metadata. All creation dates are eligible. Ranking uses only OpenSea collection creation date (such as JAN 2022) and the collection’s UNIQUE item count. Older collections and lower unique counts rank higher. NFT mint dates are not requested or displayed.</p></div><div class="toolbar"><input id="search" placeholder="Search name, token ID, creator…"><select id="rarityFilter"><option value="all">All scarcity levels</option><option value="single">Single-copy only</option><option value="early">Early / dated candidates</option><option value="verified">Verified data only</option></select></div></div>
+<div class="row" style="margin-bottom:12px;flex-wrap:wrap"><div><h2>🏺 Candidate archive</h2><p class="small">Target: exact Polygon contract plus “Untitled” collection name/slug and OpenSea unique-item count is 1–99. One card is shown per unique collection (not per NFT), discovered naturally in the contract NFT scan and confirmed by OpenSea collection metadata. All creation dates are eligible. Ranking uses only OpenSea collection creation date (such as JAN 2022) and the collection’s UNIQUE item count. Older collections and lower unique counts rank higher. NFT mint dates are not requested or displayed.</p></div><div class="toolbar"><input id="search" placeholder="Search name, token ID, creator…"><select id="rarityFilter"><option value="all">All scarcity levels</option><option value="single">Single-copy only</option><option value="early">Early / dated candidates</option><option value="verified">Verified data only</option></select></div></div>
 <div id="nftCards" class="cards"><div class="empty" style="grid-column:1/-1">No matching items loaded yet. Enter your OpenSea API key and run the targeted OpenSea-only scan. Examples are fictional.</div></div>
-<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="secondary" id="examples">Load illustrative examples</button><button class="secondary" id="export">Export visible results (CSV)</button></div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="secondary" id="export">Export visible results (CSV)</button></div>
 </section>
 <section class="card span6">
 <h2>🧭 Digital Antiquity Index</h2>
@@ -119,14 +121,12 @@ function researchCategory(x){
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function render(){
  const q=$('search').value.toLowerCase(), f=$('rarityFilter').value, sort=$('sort').value;
- let list=items.filter(x=>{
-    return (`${x.name} ${x.tokenId} ${x.creator} ${x.collectionName||""} ${x.collectionSlug||""} ${researchCategory(x)}`.toLowerCase().includes(q))
-      && (f==='all'||(f==='single'&&Number(x.supply)===1)||(f==='early'&&x.collectionCreatedDate)||(f==='verified'&&x.verified));
-  });
+ let list=items.filter(x=> (`${x.name} ${x.tokenId} ${x.creator} ${x.collectionName||""} ${x.collectionSlug||""} ${researchCategory(x)}`.toLowerCase().includes(q))
+   && (f==='all'||(f==='single'&&Number(x.collectionSize)<=10)||(f==='early'&&x.collectionCreatedDate)||(f==='verified'&&x.collectionCreatedDate&&Number.isFinite(x.collectionSize))));
  list.sort((a,b)=>sort==='date'?(a.collectionCreatedDate||'9999').localeCompare(b.collectionCreatedDate||'9999'):sort==='supply'?(Number(a.collectionSize||1e99)-Number(b.collectionSize||1e99)):sort==='value'?(b.score||0)-(a.score||0):(b.score||0)-(a.score||0));
- $('count').textContent=items.length;$('verified').textContent=items.filter(x=>x.collectionCreatedDate).length;$('single').textContent=items.filter(x=>Number(x.supply)===1).length;
- $('nftCards').innerHTML=list.length?list.map(x=>`<article class="nft"><div class="art">${x.imageUrl?`<img src="${esc(x.imageUrl)}" alt="" loading="lazy" style="max-width:100%;max-height:100%;object-fit:contain">`:esc(x.emoji||'◇')}</div><div class="nftbody"><span class="tag">${esc(researchCategory(x))}</span><div class="row"><h3>${esc(x.name||('Token '+x.tokenId))}</h3><span class="score">${x.score??'—'}</span></div><p class="small">Token ID: ${esc(x.tokenId)}</p><p class="small">Collection: ${x.collectionSlug?`<a href="https://opensea.io/collection/${encodeURIComponent(x.collectionSlug)}" target="_blank" rel="noopener" style="color:var(--gold)">${esc(x.collectionName||x.collectionSlug)}</a>`:esc(x.collectionName||"Unknown")} · Unique items: ${x.collectionSize!==null&&x.collectionSize!==undefined?esc(x.collectionSize):"Unknown"}</p><div class="meter"><i style="width:${Math.max(0,Math.min(100,x.score||0))}%"></i></div><div class="metrics"><div class="metric"><span>Collection created</span><b>${esc(x.collectionCreatedDate||'Unknown')}</b></div><div class="metric"><span>Original supply</span><b>${esc(x.supply===null||x.supply===undefined||x.supply===''||x.supply==='Unknown'?'Supply unverified':x.supply)}</b></div><div class="metric"><span>Value</span><b>${esc(x.value||'Not established')}</b></div><div class="metric"><span>Evidence</span><b>${x.verified?'Partially verified':'Unverified'}</b></div></div><p class="small">${esc(x.desc||'Research candidate. Verify on-chain data independently.')}</p><button class="secondary" onclick="openSeaLookup('${esc(x.tokenId)}')">View on OpenSea</button><button class="secondary" onclick="selectAuction('${esc(x.id)}')">Open in auction room</button></div></article>`).join(''):'<div class="empty" style="grid-column:1/-1">No items match the current filters. No results match the current filters. Try clearing the search or changing the filter.</div>';
- const old=$('auctionItem').value;$('auctionItem').innerHTML=items.map(x=>`<option value="${esc(x.id)}">${esc(x.name)} · #${esc(x.tokenId)}</option>`).join('')||'<option value="">No items</option>';
+ $('count').textContent=items.length;$('verified').textContent=items.filter(x=>x.collectionCreatedDate).length;$('single').textContent=items.filter(x=>Number(x.collectionSize)<=10).length;
+ $('nftCards').innerHTML=list.length?list.map(x=>`<article class="nft"><div class="art">${x.imageUrl?`<img src="${esc(x.imageUrl)}" alt="" loading="lazy" style="max-width:100%;max-height:100%;object-fit:contain">`:esc(x.emoji||'◇')}</div><div class="nftbody"><span class="tag">${esc(researchCategory(x))}</span><div class="row"><h3>${esc(x.collectionName||x.name||'Untitled collection')}</h3><span class="score">${x.score??'—'}</span></div><p class="small">Collection slug: ${esc(x.collectionSlug||'Unknown')}</p><p class="small">Representative NFT: ${esc(x.name||('Token '+x.tokenId))} · Token ID: ${esc(x.tokenId)}</p><p class="small">Unique items: ${x.collectionSize!==null&&x.collectionSize!==undefined?esc(x.collectionSize):'Unknown'}</p><div class="meter"><i style="width:${Math.max(0,Math.min(100,x.score||0))}%"></i></div><div class="metrics"><div class="metric"><span>Collection created (OpenSea)</span><b>${esc(x.collectionCreatedDate||'Unknown')}</b></div><div class="metric"><span>Unique-item count source</span><b>${esc(x.collectionSizeSource||'Unknown')}</b></div><div class="metric"><span>Original mint supply</span><b>Not checked</b></div><div class="metric"><span>Evidence status</span><b>${x.collectionCreatedDate&&Number.isFinite(x.collectionSize)?'OpenSea metadata found':'Partial'}</b></div></div><p class="small">${esc(x.desc||'Research candidate. Collection creation date is not the NFT mint date. Unique-item count is taken only from OpenSea unique_item_count.')}</p><a href="https://opensea.io/collection/${encodeURIComponent(x.collectionSlug||'')}" target="_blank" rel="noopener" style="color:var(--gold)">Open collection on OpenSea ↗</a><button class="secondary" onclick="openSeaLookup('${esc(x.tokenId)}')">View representative NFT on OpenSea</button><button class="secondary" onclick="selectAuction('${esc(x.id)}')">Open in auction room</button></div></article>`).join(''):'<div class="empty" style="grid-column:1/-1">No collections match the current filters. Clear the search or change the filter. If a scan hit its page/lookup limit, run again with a higher limit.</div>';
+ const old=$('auctionItem').value;$('auctionItem').innerHTML=items.map(x=>`<option value="${esc(x.id)}">${esc(x.collectionName||x.name)} · ${esc(x.collectionSize)} unique</option>`).join('')||'<option value="">No items</option>';
  if(items.some(x=>x.id===old))$('auctionItem').value=old;else if(items.length)$('auctionItem').value=items[0].id;
  updateAuction();
 }
@@ -138,8 +138,8 @@ $('createAuction').onclick=()=>{const id=$('auctionItem').value;if(!id)return al
 $('placeBid').onclick=()=>{const id=$('auctionItem').value,a=auctions[id],name=$('bidder').value.trim()||'Anonymous collector',amount=Number($('bidAmount').value);if(!a)return $('auctionStatus').textContent='Create a local auction first.';if(a.end<Date.now())return $('auctionStatus').textContent='This local auction has ended.';if(!Number.isFinite(amount)||amount<=0)return $('auctionStatus').textContent='Enter a valid bid amount.';const high=a.bids.length?Math.max(...a.bids.map(b=>b.amount)):0;if(amount<=high)return $('auctionStatus').textContent=`Bid must exceed current high bid (${high} POL).`;a.bids.push({name,amount,time:new Date().toLocaleString()});persist();$('bidAmount').value='';updateAuction();$('auctionStatus').textContent='Demo bid recorded in this browser only — no payment or blockchain transaction occurred.'};
 $('auctionItem').onchange=updateAuction;
 ['search','rarityFilter','sort'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',render));
-$('examples').onclick=()=>{items=sample.map(x=>({...x}));liveSource=false;$('source').textContent='Examples';$('scanStatus').className='status';$('scanStatus').textContent='Illustrative sample cards loaded. These are fictional examples, not real NFTs or live valuation data.';render()};
-$('export').onclick=()=>{const rows=[['name','token_id','collection_slug','collection_created_date','unique_item_count','original_supply','research_score','research_category'],...items.map(x=>[x.name,x.tokenId,x.collectionSlug,x.collectionCreatedDate,x.collectionSize,x.supply,x.score,researchCategory(x)])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='digital-antiquities-archive.csv';a.click();URL.revokeObjectURL(a.href)};
+
+$('export').onclick=()=>{const rows=[['collection_name','collection_slug','collection_created_date_opensea','unique_item_count','representative_nft_name','representative_token_id','research_score'],...items.map(x=>[x.collectionName,x.collectionSlug,x.collectionCreatedDate,x.collectionSize,x.name,x.tokenId,x.score])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='digital-antiquities-collections.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 
 $('getInstantKey').onclick=async()=>{
   const btn=$('getInstantKey'), keyField=$('openseaKey'), keyStatus=$('keyStatus');
@@ -172,122 +172,78 @@ $('getInstantKey').onclick=async()=>{
 $('scan').onclick=scanContract;
 async function scanContract(){
  const addr=$('contract').value.trim(), apiKey=$('openseaKey').value.trim();
- if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){
-   $('scanStatus').className='status error';$('scanStatus').textContent='Enter a valid 0x contract address.';return;
- }
- if(!apiKey){
-   $('scanStatus').className='status error';$('scanStatus').textContent='Enter an OpenSea API key. This standalone page uses OpenSea only and has no explorer fallback.';return;
- }
- $('scan').disabled=true;$('source').textContent='OpenSea';$('scanStatus').className='status';
- $('scanStatus').textContent='Loading NFT records from OpenSea…';
- items=[];render();
+ if(!/^0x[a-fA-F0-9]{40}$/.test(addr)){ $('scanStatus').className='status error';$('scanStatus').textContent='Enter a valid 0x contract address.';return; }
+ if(addr.toLowerCase()!=='0x2953399124f0cbb46d2cbacd8a89cf0599974963') { $('scanStatus').className='status error';$('scanStatus').textContent='This archive is locked to the requested Polygon ERC-1155 contract. The contract field must match the target address exactly.';return; }
+ if(!apiKey){ $('scanStatus').className='status error';$('scanStatus').textContent='Enter an OpenSea API key. This standalone page uses OpenSea only and has no explorer fallback.';return; }
+ $('scan').disabled=true;$('source').textContent='OpenSea';$('scanStatus').className='status';$('scanStatus').textContent='Starting rate-limited OpenSea scan…';items=[];render();
  const headers={accept:'application/json','x-api-key':apiKey};
  const base=`https://api.opensea.io/api/v2/chain/polygon/contract/${encodeURIComponent(addr)}/nfts`;
- const seen=new Set(); let cursor=null, pages=0, collectionChecks=0;
- const maxPages=20; // Safety cap: up to 1,000 contract NFT records per scan.
- const maxCollectionChecks=100; // Cap metadata requests for safety.
- const rawItems=[];
+ const seenTokens=new Set(), rawItems=[];let cursor=null,pages=0,collectionChecks=0,hitPageLimit=false,hitLookupLimit=false;
+ const maxPages=Number($('pageLimit').value)||100,maxCollectionChecks=Number($('lookupLimit').value)||500;
+ const collectionInfo=new Map();
+ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+ async function fetchJson(url){
+   let lastError;
+   for(let attempt=0;attempt<4;attempt++){
+     try{
+       const res=await fetch(url,{headers});
+       if(res.status===429||res.status>=500){if(attempt<3){const retry=Math.min(8000,1000*(2**attempt));$('scanStatus').textContent=`OpenSea rate-limit/server response (${res.status}); waiting ${retry/1000}s before retry ${attempt+2}/4…`;await sleep(retry);continue;}}
+       if(!res.ok){let detail='';try{detail=(await res.text()).slice(0,160)}catch{};throw new Error(`HTTP ${res.status}${detail?': '+detail:''}`)}
+       return await res.json();
+     }catch(e){lastError=e;if(attempt<3&&!(String(e.message||'').includes('HTTP 4'))){await sleep(800*(attempt+1));continue;}throw e;}
+   }
+   throw lastError||new Error('OpenSea request failed');
+ }
  try{
    do{
      const u=new URL(base);u.searchParams.set('limit','50');if(cursor)u.searchParams.set('next',cursor);
-     const res=await fetch(u.toString(),{headers});
-     if(!res.ok){let detail='';try{detail=(await res.text()).slice(0,180)}catch{};throw new Error('OpenSea NFT endpoint HTTP '+res.status+(detail?': '+detail:''));}
-     const data=await res.json(), arr=data.nfts||data.items||[];
-     pages++;
+     const data=await fetchJson(u.toString()),arr=data.nfts||data.items||[];pages++;
      for(const t of arr){
-       const id=String(t.identifier??t.token_id??t.id??'');
-       if(!id||seen.has(id))continue;
+       const id=String(t.identifier??t.token_id??t.id??'');if(!id)continue;
        const contractAddress=typeof t.contract==='string'?t.contract:(t.contract?.address||'');
-       if(contractAddress && contractAddress.toLowerCase()!==addr.toLowerCase())continue;
-       seen.add(id);
-       const slug=typeof t.collection==='string'?t.collection:(t.collection?.slug||t.collection_slug||'');
-       const image=t.display_image_url||t.image_url||t.image_preview_url||t.image_original_url||'';
-       rawItems.push({
-         id:addr.toLowerCase()+'-'+id,tokenId:id,
-         name:t.name||t.title||('Polygon token #'+id),
-         date:null,supply:'Supply unverified',creator:t.creator||'Unknown',
-         collectionSlug:String(slug||''),collectionName:(typeof t.collection==='object'?(t.collection.name||t.collection.slug):'')||t.collection_name||slug||'Unknown',
-         collectionSize:null,collectionSizeSource:null,
-         score:0,rarity:'Supply unverified',value:'Not established',verified:false,
-         desc:'Loaded from OpenSea NFT metadata. Collection creation date and unique item count are checked from OpenSea collection metadata; original ERC-1155 mint quantity is not confirmed.',
-         emoji:'◇',imageUrl:image,openseaUrl:`https://opensea.io/assets/matic/${addr}/${id}`
-       });
+       if(contractAddress&&contractAddress.toLowerCase()!==addr.toLowerCase())continue;
+       if(seenTokens.has(id))continue;seenTokens.add(id);
+       const slug=typeof t.collection==='string'?t.collection:(t.collection?.slug||t.collection_slug||'');if(!slug)continue;
+       rawItems.push({id:addr.toLowerCase()+'-'+id,tokenId:id,name:t.name||t.title||('Polygon token #'+id),creator:t.creator||'Unknown',collectionSlug:String(slug),collectionName:(typeof t.collection==='object'?(t.collection.name||t.collection.slug):'')||t.collection_name||slug,imageUrl:t.display_image_url||t.image_url||t.image_preview_url||t.image_original_url||'',openseaUrl:`https://opensea.io/assets/matic/${addr}/${id}`});
      }
      cursor=data.next||data.next_cursor||null;
-     $('scanStatus').textContent=`OpenSea NFT page ${pages}: collected ${rawItems.length} unique records…`;
+     $('scanStatus').textContent=`NFT discovery: page ${pages}/${maxPages}; ${rawItems.length} unique NFT records; ${new Set(rawItems.map(x=>x.collectionSlug)).size} distinct collection slugs.`;
      if(!cursor||!arr.length)break;
-   }while(pages<maxPages);
-
-   if(!rawItems.length)throw new Error('OpenSea returned no NFT records for this contract.');
-
-   // Look up each unique collection once. Use only OpenSea unique_item_count; unknown counts are excluded.
-   const slugs=[...new Set(rawItems.map(x=>x.collectionSlug).filter(Boolean))].slice(0,maxCollectionChecks);
-   const collectionInfo=new Map();
-   for(let i=0;i<slugs.length;i++){
-     const slug=slugs[i];
+     if(pages>=maxPages){hitPageLimit=true;break;}
+     await sleep(180);
+   }while(true);
+   if(!rawItems.length)throw new Error('OpenSea returned no NFT records with collection slugs for this contract.');
+   const slugs=[...new Set(rawItems.map(x=>x.collectionSlug))];
+   const slugsToCheck=slugs.slice(0,maxCollectionChecks);hitLookupLimit=slugs.length>slugsToCheck.length;
+   for(let i=0;i<slugsToCheck.length;i++){
+     const slug=slugsToCheck[i];
      try{
-       const res=await fetch(`https://api.opensea.io/api/v2/collections/${encodeURIComponent(slug)}`,{headers});
-       collectionChecks++;
-       if(res.ok){
-         const c=await res.json();
-         const rawUnique=c.unique_item_count;
-         let size=null, sizeSource=null;
-         if(rawUnique!==null&&rawUnique!==undefined&&rawUnique!==''&&Number.isFinite(Number(rawUnique))){
-           size=Number(rawUnique);sizeSource='unique_item_count';
-         }
-         collectionInfo.set(slug,{
-           name:c.name||slug,
-           slug:c.collection||slug,
-           size,sizeSource,
-           createdDate:(c.created_date && !Number.isNaN(new Date(c.created_date).getTime())) ? new Date(c.created_date).toISOString().slice(0,10) : null,
-           url:c.opensea_url||`https://opensea.io/collection/${encodeURIComponent(slug)}`
-         });
-       }
-     }catch(e){/* Unavailable collection metadata remains unknown and is excluded. */}
-     if(i%10===0){
-       $('scanStatus').textContent=`Checking collection metadata: ${i+1}/${slugs.length} · ${collectionChecks} collection lookups…`;
-       await new Promise(r=>setTimeout(r,100));
-     }
+       const c=await fetchJson(`https://api.opensea.io/api/v2/collections/${encodeURIComponent(slug)}`);collectionChecks++;
+       const rawUnique=c.unique_item_count;let size=null;
+       if(rawUnique!==null&&rawUnique!==undefined&&rawUnique!==''&&Number.isFinite(Number(rawUnique)))size=Number(rawUnique);
+       collectionInfo.set(slug,{name:c.name||slug,slug:c.collection||slug,size,sizeSource:size===null?null:'OpenSea unique_item_count',createdDate:(c.created_date&&!Number.isNaN(new Date(c.created_date).getTime()))?new Date(c.created_date).toISOString().slice(0,10):null,url:c.opensea_url||`https://opensea.io/collection/${encodeURIComponent(slug)}`});
+     }catch(e){collectionInfo.set(slug,{name:slug,slug,size:null,sizeSource:null,createdDate:null,url:`https://opensea.io/collection/${encodeURIComponent(slug)}`,lookupError:String(e.message||e)});}
+     $('scanStatus').textContent=`Collection metadata: ${i+1}/${slugsToCheck.length}; ${collectionChecks} successful lookups; ${collectionInfo.size} collection responses recorded.`;
+     await sleep(180);
    }
-
-
-   const targeted=rawItems.filter(x=>{
-     const info=collectionInfo.get(x.collectionSlug);
-     if(!info)return false;
-     x.collectionName=info.name||x.collectionSlug;
-     x.collectionSize=info.size;
-     x.collectionSizeSource=info.sizeSource;
-     x.collectionCreatedDate=info.createdDate||null;
-     // Include the example style: untitled names/slugs, and strictly fewer than 100 items.
-     const untitled=/untitled/i.test(`${x.collectionName} ${x.collectionSlug}`);
-     const knownSize=Number.isFinite(info.size)&&info.size>=1&&info.size<100;
-     return untitled&&knownSize;
-   });
-   items=targeted;
-
-   if(!items.length){
-     liveSource=true;$('source').textContent='OpenSea API';
-     $('scanStatus').className='status good';
-     $('scanStatus').textContent=`Scan complete: loaded ${rawItems.length} NFT records across ${pages} page(s), checked ${collectionChecks} collection records, and found no collections matching “untitled” with an OpenSea unique_item_count of 1–99. The scan is capped at ${maxPages} NFT pages and ${maxCollectionChecks} unique collection lookups; a match may exist beyond these limits or where OpenSea metadata is unavailable.`;
-     render();return;
+   // Deduplicate to exactly one result card per qualifying collection.
+   const byCollection=new Map();
+   for(const nft of rawItems){
+     const info=collectionInfo.get(nft.collectionSlug);if(!info)continue;
+     const name=info.name||nft.collectionName||nft.collectionSlug;
+     if(!/untitled/i.test(`${name} ${nft.collectionSlug}`))continue;
+     if(!Number.isFinite(info.size)||info.size<1||info.size>=100)continue;
+     if(!byCollection.has(nft.collectionSlug))byCollection.set(nft.collectionSlug,{...nft,collectionName:name,collectionSize:info.size,collectionSizeSource:info.sizeSource,collectionCreatedDate:info.createdDate,collectionUrl:info.url,supply:'Not checked',score:0,rarity:'Unique item count 1–99',value:'Not established',verified:!!info.createdDate&&Number.isFinite(info.size),desc:'Discovered from the specified contract via OpenSea. Creation date and unique-item count come from OpenSea collection metadata; NFT mint dates and original mint supply were not requested.'});
    }
-
-   // No NFT event or mint-history requests: collection creation date is the only date used.
-   for(const x of items){
-     x.score=scoreItem(x);
-     x.rarity='Unique item count under 100';
-   }
-   liveSource=true;
-   $('source').textContent='OpenSea API';
-   $('scanStatus').className='status good';
-   $('scanStatus').textContent=`Targeted scan complete: loaded ${rawItems.length} NFT records from ${pages} page(s), checked ${collectionChecks} OpenSea collection records, and kept ${items.length} NFTs from “untitled” collections with 1–99 unique items. Results use OpenSea collection creation dates only; no mint-event histories were requested. Scan cap: ${maxPages} NFT pages and ${maxCollectionChecks} collection lookups.`;
+   items=[...byCollection.values()];for(const x of items)x.score=scoreItem(x);
+   items.sort((a,b)=>b.score-a.score);
+   liveSource=true;$('source').textContent='OpenSea API';$('scanStatus').className='status '+(items.length?'good':'');
+   const completion=(!cursor&&!hitPageLimit)?'NFT pagination reached the end reported by OpenSea.':'PARTIAL SCAN: NFT pagination stopped at the configured page cap; more results may exist.';
+   const lookupNote=hitLookupLimit?` Collection metadata lookup cap reached (${maxCollectionChecks}); some discovered collections were not checked.`:` All ${slugs.length} discovered collection slugs fit within the lookup cap.`;
+   $('scanStatus').textContent=`${completion} Read ${rawItems.length} unique NFT records over ${pages} page(s), discovered ${slugs.length} collection slugs, checked ${collectionChecks} collection metadata responses, and found ${items.length} qualifying unique collections. ${lookupNote} Only OpenSea collection creation dates are used; NFT mint dates are not fetched. A collection missing from results may have unavailable metadata or may not be exposed by this contract endpoint.`;
    render();
- }catch(e){
-   $('source').textContent='Unavailable';$('scanStatus').className='status error';
-   $('scanStatus').textContent=`OpenSea-only scan failed: ${e.message}. Confirm your API key and check whether this browser allows requests to OpenSea's API. No PolygonScan or Blockscout fallback is used.`;
- }finally{
-   $('scan').disabled=false;
- }
+ }catch(e){$('source').textContent='Unavailable';$('scanStatus').className='status error';$('scanStatus').textContent=`OpenSea-only scan failed: ${e.message||e}. Check the API key, browser CORS, and OpenSea availability. No PolygonScan or Blockscout fallback is used.`;}
+ finally{$('scan').disabled=false;}
 }
 
 render();
