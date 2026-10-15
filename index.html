@@ -40,7 +40,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;b
   <input id="openseaKey" type="password" autocomplete="off" placeholder="Get a temporary key or paste one" style="flex:1;min-width:0">
   <button id="getInstantKey" type="button" class="secondary" style="white-space:nowrap">Get free key</button>
 </div>
-<p id="keyStatus" class="small" aria-live="polite">Temporary keys expire after 7 days. Key requests depend on OpenSea and browser CORS support.</p>
+<p id="keyStatus" class="small" aria-live="polite">Temporary keys expire after 7 days. Instant-key requests are limited by OpenSea. If the daily limit is reached, do not keep retrying; use an existing key or create a full key in the <a href="https://opensea.io/settings/developer" target="_blank" rel="noopener noreferrer">OpenSea Developer settings</a>. See the <a href="https://docs.opensea.io/reference/api-keys" target="_blank" rel="noopener noreferrer">official API-key documentation</a>.</p>
 </div>
 <div><label for="sort">Rank by collection age + uniqueness</label><select id="sort"><option value="score">Research priority (age + unique count)</option><option value="date">Earliest date (when known)</option><option value="supply">Lowest unique-item count</option><option value="value">Estimated value (manual)</option></select></div>
 <div><label for="pageLimit">NFT page limit (50 records/page)</label><select id="pageLimit"><option value="20">20 pages · 1,000 records</option><option value="50">50 pages · 2,500 records</option><option value="100" selected>100 pages · 5,000 records</option><option value="200">200 pages · 10,000 records</option><option value="500">500 pages · 25,000 records</option></select></div>
@@ -153,7 +153,11 @@ $('getInstantKey').onclick=async()=>{
     let data={};
     try{data=await res.json()}catch{}
     if(!res.ok){
-      const detail=Array.isArray(data.errors)?data.errors.join('; '):('HTTP '+res.status);
+      const detail=Array.isArray(data.errors)?data.errors.join('; '):(data.message||data.error||('HTTP '+res.status));
+      const lower=String(detail).toLowerCase();
+      if(res.status===429 || lower.includes('rate limit') || lower.includes('maximum 5 keys') || lower.includes('exceeded')){
+        throw new Error('OpenSea has reached its instant-key creation limit (reported: maximum 5 keys per day). This cannot be bypassed by this page. Stop retrying today. Reuse an existing unexpired API key, or create a full key at https://opensea.io/settings/developer.');
+      }
       throw new Error(detail);
     }
     if(!data.api_key) throw new Error('OpenSea response did not contain api_key.');
@@ -163,8 +167,9 @@ $('getInstantKey').onclick=async()=>{
     const limits=data.rate_limits?` Read ${data.rate_limits.read||'—'} · Write ${data.rate_limits.write||'—'} · Fulfillment ${data.rate_limits.fulfillment||'—'}.`:'';
     keyStatus.textContent=`Temporary key received. Expires: ${expiry}.${limits} The key is held only in this page field; it is not saved by this HTML.`;
   }catch(e){
-    keyStatus.textContent=`Could not request a key automatically: ${e.message||e}. Your browser may block the request with CORS, or OpenSea may be temporarily unavailable/rate-limiting key creation. Use OpenSea's instant-key documentation to request it manually, then paste it here.`;
-  }finally{
+    const msg=String(e.message||e);
+    keyStatus.textContent='Could not create a temporary key: '+msg+' If the message mentions the daily key limit, waiting for the limit to reset or creating a full key in OpenSea Developer settings is the remedy; browser retries will not bypass the limit.';
+  }finally{ 
     btn.disabled=false;
   }
 };
