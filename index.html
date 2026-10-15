@@ -13,8 +13,8 @@ header{padding:28px max(18px,calc((100% - 1240px)/2));border-bottom:1px solid va
 main{max-width:1240px;margin:auto;padding:22px 18px 50px}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}.card{background:linear-gradient(145deg,#152129,#10171d);border:1px solid var(--line);border-radius:16px;padding:18px;min-width:0}.span12{grid-column:span 12}.span8{grid-column:span 8}.span4{grid-column:span 4}.span6{grid-column:span 6}
 @media(max-width:800px){.span8,.span4,.span6{grid-column:span 12}}
 h2{font-size:17px;margin:0 0 12px}h3{font-size:15px;margin:0 0 7px}.muted{color:var(--muted)}.small{font-size:12px;color:var(--muted)}label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}
-input,select,button{font:inherit;border-radius:9px;border:1px solid #344954;background:#0b1319;color:var(--text);padding:11px 12px;min-width:0}input,select{width:100%}button{cursor:pointer;font-weight:750;background:var(--gold);color:#1b1710;border-color:var(--gold)}button.secondary{background:#18262e;color:var(--text);border-color:#344954}button:hover{filter:brightness(1.08)}button:disabled{opacity:.5;cursor:wait}
-.controls{display:grid;grid-template-columns:minmax(0,2fr) minmax(140px,1fr) auto;gap:10px;align-items:end}@media(max-width:620px){.controls{grid-template-columns:1fr}.controls button{width:100%}}
+input,select,button{font:inherit;border-radius:9px;border:1px solid #344954;background:#0b1319;color:var(--text);padding:11px 12px;min-width:0}input,select{width:100%}input:focus,select:focus,button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}input{position:relative;z-index:1;touch-action:manipulation}button{cursor:pointer;font-weight:750;background:var(--gold);color:#1b1710;border-color:var(--gold)}button.secondary{background:#18262e;color:var(--text);border-color:#344954}button:hover{filter:brightness(1.08)}button:disabled{opacity:.5;cursor:wait}
+.controls{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.5fr) minmax(180px,1fr);gap:10px;align-items:end}.controls>div{min-width:0}.keyrow{display:flex;gap:8px;align-items:stretch;min-width:0}.keyrow input{flex:1 1 180px;width:100%;min-width:0;user-select:text;-webkit-user-select:text}.keyrow button{flex:0 0 auto}@media(max-width:620px){.controls{grid-template-columns:minmax(0,1fr)}.controls button{width:100%}.keyrow{flex-wrap:wrap}.keyrow input{flex:1 1 100%;width:100%;min-height:48px;font-size:16px}.keyrow button{width:100%}}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}@media(max-width:620px){.stats{grid-template-columns:repeat(2,1fr)}}
 .stat{padding:12px;background:#0d151b;border:1px solid var(--line);border-radius:11px}.stat strong{display:block;font-size:21px;color:var(--gold)}.stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.toolbar input{max-width:300px}.toolbar select{width:auto;max-width:220px}
@@ -37,7 +37,8 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;b
 <div>
 <label for="openseaKey">OpenSea API key (required)</label>
 <div class="keyrow" style="display:flex;gap:8px;align-items:stretch">
-  <input id="openseaKey" type="password" autocomplete="off" placeholder="Get a temporary key or paste one" style="flex:1;min-width:0">
+  <input id="openseaKey" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" aria-label="Paste OpenSea API key" placeholder="Tap here, then paste your API key">
+  <button id="toggleKeyVisibility" type="button" class="secondary" aria-pressed="true" style="white-space:nowrap">Hide key</button>
   <button id="getInstantKey" type="button" class="secondary" style="white-space:nowrap">Get free key</button>
 </div>
 <p id="keyStatus" class="small" aria-live="polite">Temporary keys expire after 7 days. Instant-key requests are limited by OpenSea. If the daily limit is reached, do not keep retrying; use an existing key or create a full key in the <a href="https://opensea.io/settings/developer" target="_blank" rel="noopener noreferrer">OpenSea Developer settings</a>. See the <a href="https://docs.opensea.io/reference/api-keys" target="_blank" rel="noopener noreferrer">official API-key documentation</a>.</p>
@@ -141,6 +142,8 @@ $('auctionItem').onchange=updateAuction;
 
 $('export').onclick=()=>{const rows=[['collection_name','collection_slug','collection_created_date_opensea','unique_item_count','representative_nft_name','representative_token_id','research_score'],...items.map(x=>[x.collectionName,x.collectionSlug,x.collectionCreatedDate,x.collectionSize,x.name,x.tokenId,x.score])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='digital-antiquities-collections.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 
+$('toggleKeyVisibility').onclick=()=>{const field=$('openseaKey'),btn=$('toggleKeyVisibility');if(field.type==='password'){field.type='text';btn.textContent='Hide key';btn.setAttribute('aria-pressed','true')}else{field.type='password';btn.textContent='Show key';btn.setAttribute('aria-pressed','false')}field.focus()};
+$('openseaKey').addEventListener('click',()=>{$('keyStatus').textContent='Tap the API key field and paste your key. On mobile, long-press the field and choose Paste. The key is used for this scan and is not written into the HTML file.'});
 $('getInstantKey').onclick=async()=>{
   const btn=$('getInstantKey'), keyField=$('openseaKey'), keyStatus=$('keyStatus');
   btn.disabled=true;
