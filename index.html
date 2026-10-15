@@ -15,6 +15,12 @@ a{color:inherit}.wrap{width:min(var(--max),calc(100% - 40px));margin:auto}.topba
 /* Live OpenSea listings gallery */
 .listings-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:24px 0}
 .listing-status{font-size:12px;color:var(--muted)}
+/* High-contrast refresh control for desktop and mobile */
+#refreshListings{background:var(--gold);color:#15170f;border:1px solid var(--gold);font-weight:800;min-height:44px;padding:12px 18px;font-size:14px;white-space:nowrap;box-shadow:0 3px 12px #0004}
+#refreshListings:hover{background:var(--gold2);border-color:var(--gold2);color:#11140e}
+#refreshListings:focus-visible{outline:3px solid var(--gold2);outline-offset:3px}
+#refreshListings:disabled{opacity:.72;cursor:wait}
+#refreshListings .refresh-icon{font-size:18px;line-height:1}
 .listing-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .listing-card{overflow:hidden;border:1px solid var(--line);background:linear-gradient(160deg,#1a201a,#111511);display:flex;flex-direction:column;min-width:0}
 .listing-image{width:100%;aspect-ratio:1/1;object-fit:cover;background:#20251f;display:block}
@@ -57,7 +63,7 @@ a{color:inherit}.wrap{width:min(var(--max),calc(100% - 40px));margin:auto}.topba
 
   <section class="section" id="listings">
     <div class="section-head"><div class="eyebrow">OpenSea marketplace · Live data</div><h2>Currently Listed Artifacts.</h2><p class="section-intro">Only active listings associated with the connected account are shown here. Select any artifact to view its listing on OpenSea.</p></div>
-    <div class="listings-toolbar"><span class="listing-status" id="listingStatus" role="status" aria-live="polite">Loading active listings…</span><button class="btn secondary" id="refreshListings" type="button">↻ Refresh listings</button></div>
+    <div class="listings-toolbar"><span class="listing-status" id="listingStatus" role="status" aria-live="polite">Loading active listings…</span><button class="btn secondary" id="refreshListings" type="button"><span class="refresh-icon" aria-hidden="true">↻</span> <span>Refresh listings</span></button></div>
     <div class="listing-grid" id="listingGrid"><div class="listing-empty">Connecting to OpenSea listings…</div></div>
     <p class="fineprint">Listing availability and prices come from OpenSea's API and may change. OpenSea is the source of truth for each listing.</p>
   </section>
@@ -146,7 +152,12 @@ function renderListings(items) {
   }
   listingGrid.innerHTML = items.map((item, index) => {
     const asset = item.asset || {};
-    const image = asset.image_url || asset.display_image_url || asset.image || '';
+    const nft = item.nft || item.item || asset;
+    const metadata = nft.metadata || asset.metadata || {};
+    const media = Array.isArray(nft.media) ? nft.media[0] : null;
+    const image = nft.display_image_url || nft.image_url || nft.image_original_url || nft.image ||
+      metadata.image || metadata.image_url || (media && (media.gateway || media.url)) ||
+      asset.display_image_url || asset.image_url || asset.image_original_url || asset.image || '';
     const name = asset.name || (asset.identifier ? `NFT #${asset.identifier}` : `Listed artifact ${index + 1}`);
     const collection = asset.collection || asset.collection_name || '';
     const price = item.price && item.price.current ? item.price.current : null;
@@ -173,6 +184,7 @@ async function loadListings() {
   } finally {
     listingsLoading = false;
     refreshListingsButton.disabled = false;
+    refreshListingsButton.innerHTML = '<span class="refresh-icon" aria-hidden="true">↻</span> <span>Refresh listings</span>';
   }
 }
 refreshListingsButton.addEventListener('click', loadListings);
